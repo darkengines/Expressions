@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 
 namespace Darkengines.Expressions.Factories {
@@ -12,7 +14,8 @@ namespace Darkengines.Expressions.Factories {
 			.AddSingleton<IExpressionFactory, UnaryExpressionFactory>()
 			.AddSingleton<IExpressionFactory, MemberExpressionFactory>()
 			.AddSingleton<IExpressionFactory, NewExpressionFactory>()
-			.AddSingleton<IExpressionFactory>((serviceProvider) => MethodCallExpressionFactory.CreateMethodCallExpressionFactory<IEnumerable<int>, Func<Type>>(x => x.GetType));
+			.AddSingleton<IExpressionFactory, LambdaExpressionFactory>()
+			.AddSingleton<IExpressionFactory>((serviceProvider) => new MethodCallExpressionFactory(ExpressionHelper.ExtractMethodInfo<IQueryable<object>, Func<IEnumerable<object>, Expression<Func<object, object>>, Expression<Func<object, object>>, Expression<Func<object, IEnumerable<object>, object>>, IQueryable<object>>>(x => x.GroupJoin).GetGenericMethodDefinition()));
 		}
 	}
 }

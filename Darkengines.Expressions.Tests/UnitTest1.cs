@@ -9,6 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace Darkengines.Expressions.Tests {
 	[TestClass]
@@ -21,10 +23,9 @@ namespace Darkengines.Expressions.Tests {
 
 			var serviceProvider = serviceCollection.BuildServiceProvider();
 
-			var code = "{a: 1}";
+			var code = "Integers.GroupJoin(Decimals, n => n, d => d, (n, ds) => ds)";
 			var parser = new JavaScriptParser(code);
 			var jsExpression = parser.ParseExpression();
-
 			var modelConverters = serviceProvider.GetServices<IModelConverter>();
 			var context = new ModelConverterContext() { ModelConverters = modelConverters };
 			var rootConverter = modelConverters.FindModelConverterFor(jsExpression, context);
@@ -32,18 +33,73 @@ namespace Darkengines.Expressions.Tests {
 
 			var expressionFactories = serviceProvider.GetServices<IExpressionFactory>();
 			var expressionFactoryContext = new ExpressionFactoryContext() {
-				Scope = new System.Collections.Generic.Dictionary<string, Expression>() {
-					{ "Numbers", Expression.Constant(Enumerable.Range(0, 100).ToArray()) }
-				},
 				ExpressionFactories = expressionFactories
 			};
-			var expressionFactoryScope = new ExpressionFactoryScope(null, null);
+			var expressionFactoryScope = new ExpressionFactoryScope(null, null) {
+				Variables = new Dictionary<string, Expression>() {
+					{ "Integers", Expression.Constant(Enumerable.Range(0, 100).AsQueryable()) },
+					{ "Decimals", Expression.Constant(Enumerable.Range(0, 100).Select(n => (decimal)n).AsQueryable()) }
+				}
+			};
 			var rootExpressionFactory = expressionFactories.FindExpressionFactoryFor(model, expressionFactoryContext, expressionFactoryScope);
 
 			var expression = rootExpressionFactory.BuildExpression(model, expressionFactoryContext, expressionFactoryScope);
 
 			var function = Expression.Lambda<Func<object>>(Expression.Convert(expression, typeof(object))).Compile();
 			var result = function();
+		}
+
+		[TestMethod]
+		public void TestMethod2() {
+//public static IQueryable<TResult> GroupJoin<TOuter, TInner, TKey, TResult>(this IQueryable<TOuter> outer, IEnumerable<TInner> inner, Expression<Func<TOuter, TKey>> outerKeySelector, Expression<Func<TInner, TKey>> innerKeySelector, Expression<Func<TOuter, IEnumerable<TInner>, TResult>> resultSelector);
+			var list1 = Enumerable.Range(0, 100).AsQueryable();
+			var list2 = Enumerable.Range(0, 100).Select(n => (double)n).AsQueryable();
+			var key1 = (Expression<Func<int, int>>)(n => n);
+			var key2 = (Expression<Func<double, int>>)(n => (int)n);
+			var selector = (Expression<Func<int, IEnumerable<double>, double[]>>)((outer, inners) => inners.ToArray());
+			var arguments = new object[] {
+				list1,
+				list2,
+				key1,
+				key2,
+				selector
+			};
+			var argumentTypes = new Type[] {
+				list1.GetType(),
+				list2.GetType(),
+				key1.GetType(),
+				key2.GetType(),
+				selector.GetType(),
+			};
+			var methodInfo = ExpressionHelper.ExtractMethodInfo<IQueryable<object>, Func<IEnumerable<object>, Expression<Func<object, object>>, Expression<Func<object, object>>, Expression<Func<object, IEnumerable<object>, object>>, IQueryable<object>>>(x => x.GroupJoin).GetGenericMethodDefinition();
+			var map = methodInfo.GetGenericArguments().ToDictionary(arg => arg, arg => (Type)null);
+			var parameters = methodInfo.GetParameters().Select(p => p.ParameterType).ToArray();
+
+			var result = InferGenericParameters(map, parameters, argumentTypes);
+
+			var resolvedMethodInfo = methodInfo.MakeGenericMethod(result.Values.ToArray());
+			var methodCallResult = resolvedMethodInfo.Invoke(null, arguments);
+		}
+
+		public Dictionary<Type, Type> InferGenericParameters(Dictionary<Type, Type> map, Type[] parameters, Type[] arguments) {
+			var tuples = parameters.Zip(arguments, (parameter, argument) => new { Parameter = parameter, Argument = argument }).ToArray();
+			foreach (var tuple in tuples) {
+				var result = InferGenericArguments(map, tuple.Parameter, tuple.Argument);
+			}
+			return map;
+		}
+
+		public Dictionary<Type, Type> InferGenericArguments(Dictionary<Type, Type> map, Type parameter, Type argument) {
+			if (map.ContainsKey(parameter)) {
+				map[parameter] = argument;
+			} else {
+				if (parameter.IsGenericType) {
+					var parameters = parameter.GetGenericArguments();
+					var arguments = argument.GetGenericArguments();
+					map = InferGenericParameters(map, parameters, arguments);
+				}
+			}
+			return map;
 		}
 	}
 }
