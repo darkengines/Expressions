@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Darkengines.Expressions.Factories {
@@ -14,8 +15,19 @@ namespace Darkengines.Expressions.Factories {
 			.AddSingleton<IExpressionFactory, UnaryExpressionFactory>()
 			.AddSingleton<IExpressionFactory, MemberExpressionFactory>()
 			.AddSingleton<IExpressionFactory, NewExpressionFactory>()
-			.AddSingleton<IExpressionFactory, LambdaExpressionFactory>()
-			.AddSingleton<IExpressionFactory>((serviceProvider) => new MethodCallExpressionFactory(ExpressionHelper.ExtractMethodInfo<IQueryable<object>, Func<IEnumerable<object>, Expression<Func<object, object>>, Expression<Func<object, object>>, Expression<Func<object, IEnumerable<object>, object>>, IQueryable<object>>>(x => x.GroupJoin).GetGenericMethodDefinition()));
+			.AddSingleton<IExpressionFactory, LambdaExpressionFactory>();
+		}
+
+		public static IServiceCollection AddLinqMethodCallExpressionFactories(this IServiceCollection serviceCollection) {
+			var queryableLinqMethodInfos = typeof(Queryable).GetMethods().Where(methodInfo => methodInfo.IsDefined(typeof(ExtensionAttribute), true));
+			var enumerableLinqMethodInfos = typeof(Enumerable).GetMethods().Where(methodInfo => methodInfo.IsDefined(typeof(ExtensionAttribute), true));
+			foreach (var linqMethodInfo in queryableLinqMethodInfos) {
+				serviceCollection.AddSingleton<IExpressionFactory>(serviceProvider => new MethodCallExpressionFactory(linqMethodInfo));
+			}
+			foreach (var linqMethodInfo in enumerableLinqMethodInfos) {
+				serviceCollection.AddSingleton<IExpressionFactory>(serviceProvider => new MethodCallExpressionFactory(linqMethodInfo));
+			}
+			return serviceCollection;
 		}
 	}
 }

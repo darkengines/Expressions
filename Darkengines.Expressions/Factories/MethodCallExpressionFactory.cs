@@ -64,6 +64,82 @@ namespace Darkengines.Expressions.Factories {
 			throw new NotImplementedException();
 		}
 
+		public override bool CanHandle(ExpressionModel expressionModel, ExpressionFactoryContext context, ExpressionFactoryScope scope) {
+			var canHandle = base.CanHandle(expressionModel, context, scope);
+			if (canHandle) {
+				var methodCallExpressionModel = (MethodCallExpressionModel)expressionModel;
+				string methodName = null;
+				ExpressionModel objectExpressionModel = null;
+				ExpressionModel[] parametersExpressionModels = null;
+				var memberCallee = methodCallExpressionModel.Callee as MemberExpressionModel;
+				if (memberCallee != null) {
+					methodName = memberCallee.PropertyName;
+					objectExpressionModel = memberCallee.Object;
+				} else {
+					var identifierCallee = expressionModel as IdentifierExpressionModel;
+					if (identifierCallee != null) {
+						methodName = identifierCallee.Name;
+					}
+				}
+				canHandle &= methodName == MethodInfo.Name;
+				if (canHandle) {
+					var isExtension = MethodInfo.IsDefined(typeof(ExtensionAttribute), true);
+					var parameters = MethodInfo.GetParameters().ToArray();
+					var objectExpression = (Expression)null;
+
+					if (MethodInfo.IsStatic && isExtension) {
+						parametersExpressionModels = new[] { objectExpressionModel }.Concat(methodCallExpressionModel.Arguments).ToArray();
+					}
+
+					var minimumParameterCount = parameters.Where(parameter => !parameter.IsOptional).Count();
+					var maximumParameterCount = parameters.Length;
+					canHandle &= minimumParameterCount <= parametersExpressionModels.Length && maximumParameterCount >= parametersExpressionModels.Length;
+
+					if (canHandle) {
+						//TODO: Check overloads without buildind the whole set of parameter expressions. This is hard.
+						if (!MethodInfo.IsStatic) {
+							var objectExpressionFactory = context.ExpressionFactories.FindExpressionFactoryFor(objectExpressionModel, context, scope);
+							objectExpression = objectExpressionFactory.BuildExpression(objectExpressionModel, context, scope);
+							canHandle &= MethodInfo.DeclaringType.IsAssignableFrom(objectExpression.Type);
+						}
+						if (canHandle) {
+							var genericMap = MethodInfo.GetGenericArguments().ToDictionary(arg => arg, arg => (Type)null);
+							var zippedParameters = parametersExpressionModels.Zip(parameters, (argumentModel, parameter) => new { ArgumentModel = argumentModel, Parameter = parameter }).ToArray();
+							var index = 0;
+							var argumentsExpressions = new List<Expression>();
+							while(canHandle && index < zippedParameters.Length) {
+								var tuple = zippedParameters[index];
+								var argumentScope = new ExpressionFactoryScope(scope, tuple.Parameter.ParameterType) { GenericTypeResolutionMap = genericMap };
+								var argumentFactory = context.ExpressionFactories.FindExpressionFactoryFor(tuple.ArgumentModel, context, argumentScope);
+								canHandle &= argumentFactory != null;
+								if (canHandle) {
+									var argumentExpression = argumentFactory.BuildExpression(tuple.ArgumentModel, context, argumentScope);
+									genericMap = InferGenericArguments(genericMap, tuple.Parameter.ParameterType, argumentExpression.Type);
+									if (tuple.Parameter.ParameterType.IsGenericType) {
+										var genericParameters = tuple.Parameter.ParameterType.GetGenericArguments();
+										canHandle &= genericParameters.All(genericParameter => {
+											return (!genericParameter.IsGenericType && !genericParameter.IsGenericParameter)
+											|| (genericParameter.IsGenericParameter && genericMap[genericParameter] != null)
+											|| (genericParameter.IsGenericType && genericParameter.GetGenericArguments().All(arg => genericMap[arg] != null));
+										});
+									}
+									argumentsExpressions.Add(argumentExpression);
+								}
+								index++;
+							}
+
+							if (canHandle) {
+								var methoInfo = MethodInfo.MakeGenericMethod(genericMap.Values.ToArray());
+								parameters = methoInfo.GetParameters();
+								canHandle &= parameters.Zip(argumentsExpressions, (parameter, argument) => new { Parameter = parameter, Argument = argument }).All(tuple => tuple.Parameter.ParameterType.IsAssignableFrom(tuple.Argument.Type));
+							}
+						}
+					}
+				}
+			}
+			return canHandle;
+		}
+
 		public Dictionary<Type, Type> InferGenericParameters(Dictionary<Type, Type> map, Type[] parameters, Type[] arguments) {
 			var tuples = parameters.Zip(arguments, (parameter, argument) => new { Parameter = parameter, Argument = argument }).ToArray();
 			foreach (var tuple in tuples) {
@@ -78,8 +154,13 @@ namespace Darkengines.Expressions.Factories {
 			} else {
 				if (parameter.IsGenericType) {
 					var parameters = parameter.GetGenericArguments();
-					var arguments = argument.GetGenericArguments();
-					map = InferGenericParameters(map, parameters, arguments);
+					while(argument != null && (!argument.IsGenericType || !parameter.GetGenericTypeDefinition().MakeGenericType(argument.GetGenericArguments()).IsAssignableFrom(argument))) {
+						argument = argument.BaseType;
+					}
+					if (argument != null) {
+						var arguments = argument.GetGenericArguments();
+						map = InferGenericParameters(map, parameters, arguments);
+					}
 				}
 			}
 			return map;

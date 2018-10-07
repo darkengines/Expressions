@@ -19,11 +19,12 @@ namespace Darkengines.Expressions.Tests {
 		public void TestMethod1() {
 			var serviceCollection = new ServiceCollection();
 			serviceCollection.AddExpressionFactories()
+			.AddLinqMethodCallExpressionFactories()
 			.AddModelConverters();
 
 			var serviceProvider = serviceCollection.BuildServiceProvider();
 
-			var code = "Integers.GroupJoin(Decimals, n => n, d => d, (n, ds) => ds)";
+			var code = "Integers.GroupJoin(Decimals, n => n, d => d, (n, ds) => ds).SelectMany(x => x).Select(x => x*2).Aggregate(0, (sum, x) => sum + x)";
 			var parser = new JavaScriptParser(code);
 			var jsExpression = parser.ParseExpression();
 			var modelConverters = serviceProvider.GetServices<IModelConverter>();
@@ -37,7 +38,7 @@ namespace Darkengines.Expressions.Tests {
 			};
 			var expressionFactoryScope = new ExpressionFactoryScope(null, null) {
 				Variables = new Dictionary<string, Expression>() {
-					{ "Integers", Expression.Constant(Enumerable.Range(0, 100).AsQueryable()) },
+					{ "Integers", Expression.Constant(Enumerable.Range(0, 100).AsEnumerable()) },
 					{ "Decimals", Expression.Constant(Enumerable.Range(0, 100).Select(n => (decimal)n).AsQueryable()) }
 				}
 			};
@@ -51,7 +52,6 @@ namespace Darkengines.Expressions.Tests {
 
 		[TestMethod]
 		public void TestMethod2() {
-//public static IQueryable<TResult> GroupJoin<TOuter, TInner, TKey, TResult>(this IQueryable<TOuter> outer, IEnumerable<TInner> inner, Expression<Func<TOuter, TKey>> outerKeySelector, Expression<Func<TInner, TKey>> innerKeySelector, Expression<Func<TOuter, IEnumerable<TInner>, TResult>> resultSelector);
 			var list1 = Enumerable.Range(0, 100).AsQueryable();
 			var list2 = Enumerable.Range(0, 100).Select(n => (double)n).AsQueryable();
 			var key1 = (Expression<Func<int, int>>)(n => n);

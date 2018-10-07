@@ -16,7 +16,7 @@ namespace Darkengines.Expressions.Factories {
 			}
 
 			var genericArguments = targetType.GetGenericArguments().ToArray();
-			var parameterGenericArguments = genericArguments.Take(genericArguments.Length - 1);
+			var parameterGenericArguments = genericArguments.Take(genericArguments.Length - 1).ToArray();
 			var genericReturnType = genericArguments.Last();
 
 			var argumentGenericTypeMap = expressionModel.Parameters.Zip(parameterGenericArguments, (parameterModel, genericType) => new { ParameterModel = parameterModel, GenericType = genericType }).ToArray();
@@ -30,6 +30,10 @@ namespace Darkengines.Expressions.Factories {
 			var bodyExpression = bodyFactory.BuildExpression(expressionModel.Body, context, lambdaScope);
 			var returnType = bodyExpression.Type;
 
+			if (genericReturnType.IsGenericType) {
+				scope.GenericTypeResolutionMap = InferGenericArguments(scope.GenericTypeResolutionMap, genericReturnType, returnType);
+			}
+
 			var resolvedReturnType = genericReturnType.ResolveGenericType(scope.GenericTypeResolutionMap);
 			if (resolvedReturnType != null && resolvedReturnType != returnType) {
 				bodyExpression = Expression.Convert(bodyExpression, resolvedReturnType);
@@ -40,6 +44,50 @@ namespace Darkengines.Expressions.Factories {
 			} else {
 				return Expression.Lambda(bodyExpression, parameterExpressions);
 			}
+		}
+
+		public override bool CanHandle(ExpressionModel expressionModel, ExpressionFactoryContext context, ExpressionFactoryScope scope) {
+			var canHandle = base.CanHandle(expressionModel, context, scope);
+			if (canHandle) {
+				var lambdaExpressionModel = (LambdaExpressionModel)expressionModel;
+				var targetType = scope.TargetType;
+				if (targetType.IsGenericType && typeof(Expression<>) == targetType.GetGenericTypeDefinition()) {
+					targetType = targetType.GetGenericArguments()[0];
+				}
+
+				var genericArguments = targetType.GetGenericArguments().ToArray();
+				var parameterGenericArguments = genericArguments.Take(genericArguments.Length - 1).ToArray();
+				var genericReturnType = genericArguments.Last();
+
+				canHandle &= parameterGenericArguments.Length == lambdaExpressionModel.Parameters.Count();
+			}
+			return canHandle;
+		}
+
+		public Dictionary<Type, Type> InferGenericParameters(Dictionary<Type, Type> map, Type[] parameters, Type[] arguments) {
+			var tuples = parameters.Zip(arguments, (parameter, argument) => new { Parameter = parameter, Argument = argument }).ToArray();
+			foreach (var tuple in tuples) {
+				var result = InferGenericArguments(map, tuple.Parameter, tuple.Argument);
+			}
+			return map;
+		}
+
+		public Dictionary<Type, Type> InferGenericArguments(Dictionary<Type, Type> map, Type parameter, Type argument) {
+			if (map.ContainsKey(parameter)) {
+				map[parameter] = argument;
+			} else {
+				if (parameter.IsGenericType) {
+					var parameters = parameter.GetGenericArguments();
+					while (argument != null && (!argument.IsGenericType || !parameter.GetGenericTypeDefinition().MakeGenericType(argument.GetGenericArguments()).IsAssignableFrom(argument))) {
+						argument = argument.BaseType;
+					}
+					if (argument != null) {
+						var arguments = argument.GetGenericArguments();
+						map = InferGenericParameters(map, parameters, arguments);
+					}
+				}
+			}
+			return map;
 		}
 	}
 }
