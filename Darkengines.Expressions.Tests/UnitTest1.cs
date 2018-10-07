@@ -24,7 +24,7 @@ namespace Darkengines.Expressions.Tests {
 
 			var serviceProvider = serviceCollection.BuildServiceProvider();
 
-			var code = "Integers.GroupJoin(Decimals, n => n, d => d, (n, ds) => ds).SelectMany(x => x).Select(x => x*2).Aggregate(0, (sum, x) => sum + x)";
+			var code = "Integers.Skip(10).Take(20).GroupJoin(Decimals, n => n, d => d, (n, ds) => ds).SelectMany(x => x).Select(x => x*2).Aggregate(0, (sum, x) => sum + x)";
 			var parser = new JavaScriptParser(code);
 			var jsExpression = parser.ParseExpression();
 			var modelConverters = serviceProvider.GetServices<IModelConverter>();
