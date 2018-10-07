@@ -1,5 +1,5 @@
 # Expressions
-Provide a safe way execute expressions on the server side from the client side.
+Provide a way to execute expressions on the server side from the client side.
 
 ```C#
 // Create a service collection and add the model converters and the expression factories.
