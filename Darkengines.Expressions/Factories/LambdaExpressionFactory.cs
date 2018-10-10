@@ -78,7 +78,11 @@ namespace Darkengines.Expressions.Factories {
 			} else {
 				if (parameter.IsGenericType) {
 					var parameters = parameter.GetGenericArguments();
-					while (argument != null && (!argument.IsGenericType || !parameter.GetGenericTypeDefinition().MakeGenericType(argument.GetGenericArguments()).IsAssignableFrom(argument))) {
+					Type matchingInterface = null;
+					if ((matchingInterface = argument.GetInterfaces().FirstOrDefault(@interface => @interface.IsGenericType && parameter.GetGenericTypeDefinition() == @interface.GetGenericTypeDefinition())) != null) {
+						argument = matchingInterface;
+					}
+					while (argument != null && (!argument.IsGenericType || !parameter.GetGenericTypeDefinition().MakeGenericType(argument.GetGenericArguments().Take(parameters.Length).ToArray()).IsAssignableFrom(argument))) {
 						argument = argument.BaseType;
 					}
 					if (argument != null) {

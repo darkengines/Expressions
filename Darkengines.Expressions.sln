@@ -7,6 +7,29 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Darkengines.Expressions", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Darkengines.Expressions.Tests", "Darkengines.Expressions.Tests\Darkengines.Expressions.Tests.csproj", "{5FA9F7EA-C4D2-491F-9BE6-CF9E87E77886}"
 EndProject
+Project("{E24C65DC-7377-472B-9ABA-BC803B73C61A}") = "Darkengines.Expressions.Typescript", "Darkengines.Expressions.Typescript\", "{F7621F26-1884-48F1-BEB4-53AC0434ADD0}"
+	ProjectSection(WebsiteProperties) = preProject
+		TargetFrameworkMoniker = ".NETFramework,Version%3Dv4.0"
+		Debug.AspNetCompiler.VirtualPath = "/localhost_57075"
+		Debug.AspNetCompiler.PhysicalPath = "Darkengines.Expressions.Typescript\"
+		Debug.AspNetCompiler.TargetPath = "PrecompiledWeb\localhost_57075\"
+		Debug.AspNetCompiler.Updateable = "true"
+		Debug.AspNetCompiler.ForceOverwrite = "true"
+		Debug.AspNetCompiler.FixedNames = "false"
+		Debug.AspNetCompiler.Debug = "True"
+		Release.AspNetCompiler.VirtualPath = "/localhost_57075"
+		Release.AspNetCompiler.PhysicalPath = "Darkengines.Expressions.Typescript\"
+		Release.AspNetCompiler.TargetPath = "PrecompiledWeb\localhost_57075\"
+		Release.AspNetCompiler.Updateable = "true"
+		Release.AspNetCompiler.ForceOverwrite = "true"
+		Release.AspNetCompiler.FixedNames = "false"
+		Release.AspNetCompiler.Debug = "False"
+		VWDPort = "57075"
+		SlnRelativePath = "Darkengines.Expressions.Typescript\"
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Darkengines.Expressions.Web", "Darkengines.Expressions.Web\Darkengines.Expressions.Web.csproj", "{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +44,14 @@ Global
 		{5FA9F7EA-C4D2-491F-9BE6-CF9E87E77886}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5FA9F7EA-C4D2-491F-9BE6-CF9E87E77886}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5FA9F7EA-C4D2-491F-9BE6-CF9E87E77886}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F7621F26-1884-48F1-BEB4-53AC0434ADD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F7621F26-1884-48F1-BEB4-53AC0434ADD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F7621F26-1884-48F1-BEB4-53AC0434ADD0}.Release|Any CPU.ActiveCfg = Debug|Any CPU
+		{F7621F26-1884-48F1-BEB4-53AC0434ADD0}.Release|Any CPU.Build.0 = Debug|Any CPU
+		{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

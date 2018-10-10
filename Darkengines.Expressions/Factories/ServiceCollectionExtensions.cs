@@ -15,6 +15,7 @@ namespace Darkengines.Expressions.Factories {
 			.AddSingleton<IExpressionFactory, UnaryExpressionFactory>()
 			.AddSingleton<IExpressionFactory, MemberExpressionFactory>()
 			.AddSingleton<IExpressionFactory, NewExpressionFactory>()
+			.AddSingleton<IExpressionFactory, ArrayExpressionFactory>()
 			.AddSingleton<IExpressionFactory, LambdaExpressionFactory>();
 		}
 

@@ -77,7 +77,7 @@ namespace Darkengines.Expressions.Tests {
 					var serviceProvider = serviceCollection.BuildServiceProvider();
 
 					// This line of code will be executed on the server side.
-					var code = "Users.Join(Blogs, u => u.Id, b => b.OwnerId, (u, b) => b.Posts.ToList()).ToArray()";
+					var code = "Users.Join(Blogs, u => u.Id, b => b.OwnerId, (u, b) => b.Posts.Select(p => ({Content: p.Content})).ToList()).ToArray()";
 
 					// Parsing Ecmascript
 					var parser = new JavaScriptParser(code);

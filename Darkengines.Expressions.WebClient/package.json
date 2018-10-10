@@ -1,0 +1,11 @@
+{
+  "name": "expressions",
+  "description": "A simple console application showcase for the Darkengines.Expressions library.",
+  "dependencies": {
+    "@polymer/polymer": "^3.0.0"
+  },
+  "devDependencies": {
+    "@webcomponents/webcomponentsjs": "^2.0.0",
+    "wct-browser-legacy": "^1.0.0"
+  }
+}

@@ -10,6 +10,8 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Darkengines.Expressions.Tests {
 	[TestClass]
@@ -69,6 +71,50 @@ namespace Darkengines.Expressions.Tests {
 				var function = Expression.Lambda<Func<object>>(Expression.Convert(expression, typeof(object))).Compile();
 				var result = function();
 			}
+		}
+
+		[TestMethod]
+		public void TestTypescript() {
+			var queryableLinqMethodInfos = typeof(Queryable).GetMethods().Where(methodInfo => methodInfo.IsDefined(typeof(ExtensionAttribute), true));
+			var signatures = queryableLinqMethodInfos.Select(methodInfo => {
+				var stringBuilder = new StringBuilder();
+				var genericArguments = methodInfo.GetGenericArguments().Where(ga => ga.Name != "TSource").ToArray();
+				var parameters = methodInfo.GetParameters().Skip(1);
+				stringBuilder.Append($"public {methodInfo.Name}");
+				if (genericArguments.Any()) {
+					stringBuilder.Append($"<{string.Join(", ", genericArguments.Select(ga => ga.Name))}>");
+				}
+				stringBuilder.Append("(");
+				var tsParameters = parameters.Select(parameter => {
+					var typeName = parameter.ParameterType.Name;
+					if (parameter.ParameterType.IsGenericType) {
+						var args = parameter.ParameterType.GetGenericArguments();
+						typeName = $"{new string(parameter.ParameterType.Name.TakeWhile(c => c != '`').ToArray())}<{string.Join(", ", args.Select(a => a.Name))}>";
+					}
+					if (parameter.ParameterType.Name.StartsWith("Expression")) {
+						var funcType = parameter.ParameterType.GetGenericArguments()[0];
+						var funcGenericArguments = funcType.GetGenericArguments();
+						typeName = $"Expression<({string.Join(", ", funcGenericArguments.Take(funcGenericArguments.Count() - 1).Select(fga => { var name = fga.Name.Substring(1); return $"{ name[0] + name.Substring(1)}: {fga.Name}"; }))}) => {funcGenericArguments.Last().Name}>";
+					}
+					if (parameter.ParameterType.Name.StartsWith("Func")) {
+						var funcType = parameter.ParameterType.GetGenericArguments()[0];
+						var funcGenericArguments = funcType.GetGenericArguments();
+						typeName = $"({string.Join(", ", funcGenericArguments.Take(funcGenericArguments.Count() - 1).Select(fga => { var name = fga.Name.Substring(1); return $"{ name[0] + name.Substring(1)}: {fga.Name}"; }))}) => {funcGenericArguments.Last().Name}";
+					}
+					return $"{parameter.Name}: {typeName}";
+				});
+				stringBuilder.Append(string.Join(", ", tsParameters));
+				stringBuilder.Append(")");
+				var returnTypeName = methodInfo.ReturnType.Name;
+				if (methodInfo.ReturnType.IsGenericType) {
+					var args = methodInfo.ReturnType.GetGenericArguments();
+					returnTypeName = $"{new string(methodInfo.ReturnType.Name.TakeWhile(c => c != '`').ToArray())}<{string.Join(", ", args.Select(a => a.Name))}>";
+				}
+				stringBuilder.Append($": {returnTypeName}");
+				stringBuilder.Append(" {}");
+				return stringBuilder.ToString();
+			}).ToArray();
+			var all = string.Join("\n", signatures);
 		}
 
 		[TestMethod]

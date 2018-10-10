@@ -15,7 +15,8 @@ namespace Darkengines.Expressions.ModelConverters {
 			.AddSingleton<IModelConverter, UnaryExpressionJavascriptConverter>()
 			.AddSingleton<IModelConverter, MemberExpressionJavascriptConverter>()
 			.AddSingleton<IModelConverter, MethodCallExpressionJavascriptConverter>()
-			.AddSingleton<IModelConverter, NewExpressionJavascriptConverter>();
+			.AddSingleton<IModelConverter, NewExpressionJavascriptConverter>()
+			.AddSingleton<IModelConverter, ArrayExpressionJavascriptConverter>();
 		}
 	}
 }
