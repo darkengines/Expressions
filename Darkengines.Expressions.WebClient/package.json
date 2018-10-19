@@ -2,6 +2,12 @@
   "name": "expressions",
   "description": "A simple console application showcase for the Darkengines.Expressions library.",
   "dependencies": {
+    "@polymer/app-route": "^3.0.2",
+    "@polymer/iron-icons": "^3.0.1",
+    "@polymer/iron-pages": "^3.0.1",
+    "@polymer/lit-element": "^0.6.0-dev.6",
+    "@polymer/paper-icon-button": "^3.0.1",
+    "@polymer/paper-input": "^3.0.1",
     "@polymer/polymer": "^3.0.0"
   },
   "devDependencies": {

@@ -48,8 +48,8 @@ namespace Darkengines.Expressions.Web {
 			var dbSetProperties = bloggingContext.GetType().GetProperties().Where(property => property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>)).ToArray();
 			var types = dbSetProperties.Select(dbSetProperty => dbSetProperty.PropertyType.GetGenericArguments()[0]).ToArray();
 
-			var schemasTasks = types.ToDictionary(type => type.Name, async type => await JsonSchema4.FromTypeAsync(type));
-			var schemas = schemasTasks.ToDictionary(kp => kp.Key, kp => kp.Value.Result);
+			var generator = new JSchemaGenerator();
+			var schemas = types.ToDictionary(type => type.Name, type => generator.Generate(type));
 
 			var expressionFactoryScope = new ExpressionFactoryScope(null, null) {
 				Variables = new Dictionary<string, Expression>() {

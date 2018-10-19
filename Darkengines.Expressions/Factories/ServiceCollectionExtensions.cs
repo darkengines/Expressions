@@ -28,6 +28,7 @@ namespace Darkengines.Expressions.Factories {
 			foreach (var linqMethodInfo in enumerableLinqMethodInfos) {
 				serviceCollection.AddSingleton<IExpressionFactory>(serviceProvider => new MethodCallExpressionFactory(linqMethodInfo));
 			}
+			serviceCollection.AddSingleton<IExpressionFactory>(serviceProvider => MethodCallExpressionFactory.CreateMethodCallExpressionFactory<string, Func<string, bool>>(@string => @string.StartsWith));
 			return serviceCollection;
 		}
 	}

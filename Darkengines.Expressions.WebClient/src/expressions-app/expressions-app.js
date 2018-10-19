@@ -1,5 +1,10 @@
 import { html, PolymerElement } from '@polymer/polymer/polymer-element.js';
-import { resolve, encode, decode } from '../json-ref';
+import '../darkengines-expressions-console/darkengines-expressions-console.js';
+import '../darkengines-crud/darkengines-crud.js';
+import '../darkengines-select-test/darkengines-select-test.js';
+import '@polymer/app-route/app-route.js';
+import '@polymer/app-route/app-location.js';
+import '@polymer/iron-pages/iron-pages.js';
 
 /**
  * @customElement
@@ -8,97 +13,45 @@ import { resolve, encode, decode } from '../json-ref';
 class ExpressionsApp extends PolymerElement {
   static get template() {
     return html`
-      <style>
-        :host {
-          display: block;
-        }
-      
-        * {
-          box-sizing: border-box;
-        }
-      
-        .console {
-          background-color: rgba(33, 33, 33, 1.0);
-          height: 100%;
-          width: 100%;
-          display: flex;
-          flex-direction: column;
-          padding: 16px;
-          color: rgba(198, 198, 198, 1.0);
-          font-size: 8px;
-        }
-      
-        .console .output {
-          display: flex;
-          flex-direction: row;
-          height: 100%;
-          font-family: monospace;
-        }
-      
-        .console .output .result {
-          overflow-y: auto;
-          width: 50%;
-          padding: 4px;
-          border-left: 1px solid rgba(198, 198, 198, 1.0);
-          border-right: 1px solid rgba(198, 198, 198, 1.0);
-          border-top: 1px solid rgba(198, 198, 198, 1.0);
-        }
-      
-        .console .output .logs {
-          overflow-y: auto;
-          padding: 4px;
-          width: 50%;
-          border-right: 1px solid rgba(198, 198, 198, 1.0);
-          border-top: 1px solid rgba(198, 198, 198, 1.0);
-        }
-      
-        .console .input {
-          width: 100%;
-          height: 64px;
-          border: 1px solid rgba(198, 198, 198, 1.0);
-          background-color: inherit;
-          color: inherit;
-          outline: 0;
-          padding: 4px;
-          font-size: 8px;
-          resize: none;
-        }
-      </style>
-      <div class="console">
-        <div class="output">
-          <div id="result" class="result">
-          </div>
-          <div class="logs">
-          </div>
-        </div>
-        <textarea id="input" on-keydown="inputKeyDown" class="input" spellcheck="false"></textarea>
-      </div>
-    `;
-  }
-  inputKeyDown(e) {
-    if (e.keyCode === 13) {
-      fetch('https://localhost:8080', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        body: this.$.input.value
-      }).then(response => {
-        return response.json().then(json => {
-          this.$.result.innerHTML = JSON.stringify(json);
-          var decoded = decode(json);
-          console.log(decoded);
-        });
-      });
-      e.preventDefault();
-      return false;
-    }
-  }
-  static get properties() {
-    return {
-      
-    };
+    <style>
+      :host {
+        display: block;
+        height: 100%;
+        font-family: verdana
+      }
+    
+      .application {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+    
+      .pages {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .page {
+        height: 100%;
+      }
+    
+      .route {
+        font-size: 10px;
+        padding: 4px;
+      }
+    </style>
+    <app-location route="{{route}}" use-hash-as-path="true"></app-location>
+    <app-route route="{{route}}" pattern="/:page" data="{{routeData}}" tail="{{subroute}}">
+    </app-route>
+    <div class="application">
+      <div class="route">[[route.path]]</div>
+      <iron-pages attr-for-selected="page" class="pages" selected="[[routeData.page]]">
+        <darkengines-expressions-console page="console" class="page"></darkengines-expressions-console>
+        <darkengines-crud page="crud" class="page" route=[[subroute]]></darkengines-crud>
+        <darkengines-select-test page="select" class="page"></darkengines-select-test>
+      </iron-pages>
+    </div>`;
   }
 }
 
