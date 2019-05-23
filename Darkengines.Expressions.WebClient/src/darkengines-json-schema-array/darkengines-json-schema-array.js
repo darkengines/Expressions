@@ -1,50 +1,31 @@
+import { html } from '@polymer/lit-element/lit-element.js';
 
-import { PolymerElement, html } from '@polymer/polymer/polymer-element.js';
-import '@polymer/paper-input/paper-input.js';
+const renderItem = (props) => {
+	return html`<darkengines-json-schema class="item" .schema="${props.schema}" .value="${props.value}" entityInfos="${props.entityInfos}" .inversePropertyName="${props.inversePropertyName}"></darkengines-json-schema>`;
+};
 
-class DarkenginesJsonSchemaArray extends PolymerElement {
-	static get template() {
-		return html`
-<style>
-	:host {
+const test = e => {
+	e.target.nextElementSibling.classList.add('open');
+};
+
+const arrayTemplate = (props) => {
+	return html`<style>
+	.array {
+		display: none;
+	}
+	.array.open {
 		display: block;
 	}
-	.items {
-		padding-left: 16px;
+	.array .item {
+		border: 2px solid black;
 	}
-	.item {
-		border: solid 1px black;
-		margin: 4px;
+	.array .item + .item {
+		margin-top: 8px;
 	}
-</style>
-<h4>[[schema.title]]</h4>
-<div class="items">
-	<dom-repeat items="{{value}}">
-		<template>
-			<darkengines-json-schema class="item" schema=[[schema.items]] value={{item}}></darkengines-json-schema>
-		</template>
-	</dom-repeat>
-	<div on-click="addItem">
-		Add
-	</div>
-</div>`;
-	}
-	addItem() {
-		this.push('value', {});
-	}
-	static get properties() {
-		return {
-			schema: {
-				type: Object,
-				notify: false,
-			},
-			value: {
-				type: Array,
-				notify: true,
-				value: []
-			}
-		}
-	}
-}
+	</style><h3>${props.schema ? props.schema.title: null}</h3><div @click=${test}>${props.value ? props.value.length : null} items</div>
+	<div class="array">
+	${props.value ? props.value.map(value => renderItem({ schema: props.schema.items, value: value, entityInfos: props.entityInfos, inversePropertyName: props.inversePropertyName })) : null}
+	</div>`;
+};
 
-window.customElements.define('darkengines-json-schema-array', DarkenginesJsonSchemaArray);
+export { arrayTemplate };

@@ -1,4 +1,47 @@
 {
+  "builds": [
+    {
+      "preset": "es6-bundled",
+      "addServiceWorker": false
+    },
+    {
+      "preset": "es6-bundled",
+      "name": "dev",
+      "browserCapabilities": [
+        "es2015",
+        "push"
+      ],
+      "addServiceWorker": false,
+      "addPushManifest": true,
+      "insertPrefetchLinks": true,
+      "bundle": {
+        "exclude": [],
+        "inlineCss": true,
+        "inlineScripts": true,
+        "rewriteUrlsInTemplates": true,
+        "sourcemaps": true,
+        "stripComments": false
+      },
+      "html": {
+        "minify": {
+          "exclude": []
+        }
+      },
+      "css": {
+        "minify": {
+          "exclude": []
+        }
+      },
+      "js": {
+        "minify": {
+          "exclude": []
+        },
+        "compile": {
+          "exclude": []
+        }
+      }
+    }
+  ],
   "npm": true,
   "lint": {
     "rules": [

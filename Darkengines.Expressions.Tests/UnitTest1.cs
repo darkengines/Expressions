@@ -12,6 +12,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
+using Darkengines.Expressions.Tests.Entities;
+using Newtonsoft.Json.Serialization;
 
 namespace Darkengines.Expressions.Tests {
 	[TestClass]
@@ -117,6 +121,63 @@ namespace Darkengines.Expressions.Tests {
 			var all = string.Join("\n", signatures);
 		}
 
+
+		[TestMethod]
+		public void TestUpdate() {
+			var configuration = new ConfigurationBuilder()
+			.AddJsonFile("appsettings.json")
+			.Build();
+			var serviceCollection = new ServiceCollection();
+			serviceCollection.AddExpressionFactories()
+			.AddEntityFrameworkSqlServer()
+			.AddDbContext<BloggingContext>((optionBuilder) =>
+				optionBuilder.UseSqlServer(configuration.GetConnectionString("default"))
+			)
+			.AddLinqMethodCallExpressionFactories()
+			.AddModelConverters();
+
+			var serviceProvider = serviceCollection.BuildServiceProvider();
+
+			var dbContext = serviceProvider.GetService<BloggingContext>();
+
+			var data = $@"{{ 
+				""id"": 4,
+				""blogs"": [{{ 
+					""id"": 1, 
+					""posts"": [
+						{{""id"": 6, ""content"": ""coincoin""}}
+					]
+				}}]
+			}}";
+			var user = JsonConvert.DeserializeObject<User>(data, new JsonSerializerSettings() {
+				ContractResolver = new CamelCasePropertyNamesContractResolver()
+			});
+
+			dbContext.Attach(user);
+			var entry = dbContext.Entry(user.Blogs.First().Posts.First());
+			entry.State = EntityState.Deleted;
+			
+			//var blog = new Blog() {
+			//	Id = 1, 
+			//};
+
+			//var user = new User() {
+			//	Id = 4,
+			//	DisplayName = "Mamadou",
+			//	HashedPassword = Guid.NewGuid().ToString()
+			//};
+
+			//dbContext.Attach(user);
+
+			//user.Blogs.Add(blog);
+
+			//var post = new Post() {
+			//	Content = "J'aime les mamadou, ils sont doux",
+			//};
+
+			dbContext.Update(user);
+			dbContext.SaveChanges();
+		}
 		[TestMethod]
 		public void TestMethod2() {
 			var list1 = Enumerable.Range(0, 100).AsQueryable();

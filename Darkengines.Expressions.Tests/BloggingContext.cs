@@ -1,7 +1,12 @@
-﻿using Darkengines.Expressions.Tests.Entities;
+﻿using Darkengines.Expressions.Security;
+using Darkengines.Expressions.Tests.Entities;
+using Darkengines.Expressions.Tests.Security;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 
 namespace Darkengines.Expressions.Tests {
@@ -30,6 +35,7 @@ namespace Darkengines.Expressions.Tests {
 			modelBuilder.Entity<Post>().HasMany(post => post.Comments).WithOne(comment => comment.Post).HasForeignKey(comment => comment.PostId);
 
 			modelBuilder.Entity<Comment>().HasKey(comment => comment.Id);
+			modelBuilder.AddSecurity();
 		}
 	}
 }

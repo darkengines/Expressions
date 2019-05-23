@@ -11,6 +11,47 @@ import '@polymer/iron-pages/iron-pages.js';
  * @polymer
  */
 class ExpressionsApp extends PolymerElement {
+
+
+  ready() {
+    super.ready();
+    fetch('http://192.168.1.2:8080', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: `RootSchema`
+    }).then(response => {
+      return response.json().then(json => {
+        var decoded = resolve(json);
+        this.schema = decoded.properties[e.entityName].oneOf[1];
+
+        var query = Object.keys(this.schema.properties).reduce((r, p) => {
+          var type = this.schema.properties[p].type;
+          if (type instanceof Array) type = type[1];
+          if (type == 'array') r = `${r}.Include(x => x.${p})`;
+          return r;
+        }, 'Users');
+        query += '.FirstOrDefault()';
+
+        fetch('http://192.168.1.2:8080', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: query
+        }).then(response => {
+          return response.json().then(json => {
+            var decoded = decode(json);
+            this.value = decoded;
+          });
+        });
+      });
+    });
+  }
+
   static get template() {
     return html`
     <style>

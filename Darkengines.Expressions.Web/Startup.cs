@@ -17,6 +17,7 @@ using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Schema;
 using System.Globalization;
 using System.Reflection;
+using DarkEngines.Expressions;
 
 namespace Darkengines.Expressions.Web {
 	public static class License {
@@ -48,6 +49,7 @@ namespace Darkengines.Expressions.Web {
 			.AddExpressionFactories()
 			.AddEntityFrameworkLinqExtensions()
 			.AddCors()
+			.AddSingleton(new AnonymousTypeBuilder("Anonymous", "Anonymous"))
 			.AddLinqMethodCallExpressionFactories()
 			.AddModelConverters()
 			.AddDbContext<BloggingContext>((serviceProvider, options) =>

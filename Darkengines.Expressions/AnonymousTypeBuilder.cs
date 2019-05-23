@@ -13,10 +13,10 @@ namespace DarkEngines.Expressions {
 			AssemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName(assemblyName), AssemblyBuilderAccess.Run);
 			ModuleBuilder = AssemblyBuilder.DefineDynamicModule(moduleName);
 		}
-		public Type BuildAnonymousType(HashSet<Tuple<Type, string>> propertySet) {
-			var dynamicTypeName = Guid.NewGuid().ToString();
+		public Type BuildAnonymousType(HashSet<Tuple<Type, string>> propertySet, string typeName = null) {
+			var dynamicTypeName = typeName ?? Guid.NewGuid().ToString();
 			var typeBuilder = ModuleBuilder.DefineType(dynamicTypeName, TypeAttributes.Public);
-
+			
 			foreach (var tuple in propertySet) {
 				EmitAutoProperty(typeBuilder, tuple.Item2, tuple.Item1);
 			}
@@ -31,7 +31,7 @@ namespace DarkEngines.Expressions {
 			var propertyBuilder = typeBuilder.DefineProperty(propertyName, PropertyAttributes.HasDefault, propertyType, null);
 
 			var getMethod = typeBuilder.DefineMethod("get_" + propertyName,
-				MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig,
+				MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig | MethodAttributes.Virtual,
 				propertyType,
 				Type.EmptyTypes
 			);
@@ -42,7 +42,7 @@ namespace DarkEngines.Expressions {
 			propertyBuilder.SetGetMethod(getMethod);
 
 			var setMethod = typeBuilder.DefineMethod("set_" + propertyName,
-				MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig,
+				MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig | MethodAttributes.Virtual,
 				null,
 				new[] { propertyType }
 			);

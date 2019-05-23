@@ -1,36 +1,44 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
 
-    <title>expressions</title>
-    <meta name="description" content="A simple console application showcase for the Darkengines.Expressions library.">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=no">
 
-    <!-- See https://goo.gl/OOhYW5 -->
-    <link rel="manifest" href="/manifest.json">
+  <title>expressions</title>
+  <meta name="description" content="A simple console application showcase for the Darkengines.Expressions library.">
 
-    <script src="/node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
+  <script src="/node_modules/@webcomponents/webcomponentsjs/webcomponents-loader.js"></script>
 
-    <script type="module" src="/src/expressions-app/expressions-app.js" crossorigin></script>
-    <script type="module" src="/src/darkengines-json-schema/darkengines-json-schema.js" crossorigin></script>
-    <style>
-      html, body {
-        height: 100vh;
-        width: 100vw;
-        margin: 0px;
-        padding: 0px;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      .app {
-        width: 100%;
-        height: 100%;
-      }
-    </style>
-  </head>
-  <body>
-    <expressions-app class="app"></expressions-app>
-  </body>
+  <script type="module" src="/src/expressions-app/expressions-app.js" crossorigin></script>
+  <script type="module" src="/src/darkengines-json-schema/darkengines-json-schema.js" crossorigin></script>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?use_slippy=true&key=AIzaSyBVhi8Fhmn0M8smJ_R1zEbMSh1R5yCLV9A&libraries=geometry,places"></script>
+  <style>
+    html,
+    body {
+      max-height: 100vh;
+      max-width: 100vw;
+      height: 100vh;
+      width: 100vw;
+      margin: 0px;
+      padding: 0px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    .app {
+      margin: auto;
+      max-width: 1024px;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <expressions-app class="app"></expressions-app>
+</body>
+
 </html>

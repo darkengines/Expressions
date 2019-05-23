@@ -15,7 +15,7 @@ namespace Darkengines.Expressions.Factories {
 		public ExpressionFactoryScope Parent { get; }
 		public Type TargetType { get; }
 		public Dictionary<Type, Type> GenericTypeResolutionMap { get; set; }
-		public Dictionary<string, Expression> Variables { get; set; }
+		public IDictionary<string, Expression> Variables { get; set; }
 		public Expression FindIdentifier(string identifier) {
 			Expression value = null;
 			if (Variables.TryGetValue(identifier, out value)) {

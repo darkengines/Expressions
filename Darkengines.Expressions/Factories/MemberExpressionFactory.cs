@@ -9,7 +9,7 @@ namespace Darkengines.Expressions.Factories {
 		public override Expression BuildExpression(MemberExpressionModel expressionModel, ExpressionFactoryContext context, ExpressionFactoryScope scope) {
 			var objectFactory = context.ExpressionFactories.FindExpressionFactoryFor(expressionModel.Object, context, scope);
 			var objectExpression = objectFactory.BuildExpression(expressionModel.Object, context, scope);
-			var propertyInfo = objectExpression.Type.GetProperty(expressionModel.PropertyName);
+			var propertyInfo = objectExpression.Type.GetProperty(expressionModel.PropertyName) ?? objectExpression.Type.GetProperty(expressionModel.PropertyName.ToPascalCase());
 			return Expression.MakeMemberAccess(objectExpression, propertyInfo);
 		}
 	}

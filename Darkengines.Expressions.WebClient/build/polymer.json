@@ -1,0 +1,80 @@
+{
+  "entrypoint": "index.html",
+  "fragments": [],
+  "sources": [
+    "src/**/*",
+    "index.html"
+  ],
+  "extraDependencies": [
+    "bower_components/webcomponentsjs/*.js"
+  ],
+  "builds": [
+    {
+      "name": "es6-bundled",
+      "browserCapabilities": [
+        "es2015"
+      ],
+      "js": {
+        "minify": true,
+        "compile": "es2015",
+        "transformModulesToAmd": true
+      },
+      "css": {
+        "minify": true
+      },
+      "html": {
+        "minify": true
+      },
+      "bundle": true,
+      "addServiceWorker": false,
+      "addPushManifest": false,
+      "preset": "es6-bundled"
+    },
+    {
+      "name": "dev",
+      "browserCapabilities": [
+        "es2015",
+        "push"
+      ],
+      "js": {
+        "minify": {
+          "exclude": []
+        },
+        "compile": {
+          "exclude": []
+        },
+        "transformModulesToAmd": true
+      },
+      "css": {
+        "minify": {
+          "exclude": []
+        }
+      },
+      "html": {
+        "minify": {
+          "exclude": []
+        }
+      },
+      "bundle": {
+        "exclude": [],
+        "inlineCss": true,
+        "inlineScripts": true,
+        "rewriteUrlsInTemplates": true,
+        "sourcemaps": true,
+        "stripComments": false
+      },
+      "addServiceWorker": false,
+      "addPushManifest": true,
+      "preset": "es6-bundled",
+      "insertPrefetchLinks": true
+    }
+  ],
+  "lint": {
+    "rules": [
+      "polymer-3"
+    ]
+  },
+  "npm": true,
+  "componentDir": "node_modules/",
+  "moduleResolution": "node"
+}

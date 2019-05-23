@@ -1,14 +1,19 @@
-﻿using Darkengines.Expressions.Factories;
+﻿using Darkengines.Expressions.Entities;
+using Darkengines.Expressions.Factories;
 using Darkengines.Expressions.ModelConverters;
 using Darkengines.Expressions.Web.Entities;
+using DarkEngines.Expressions;
 using Esprima;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Schema;
 using Newtonsoft.Json.Schema.Generation;
 using NJsonSchema;
+using NJsonSchema.CodeGeneration.TypeScript;
+using NJsonSchema.Generation;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -25,7 +30,33 @@ namespace Darkengines.Expressions.Web {
 			_next = next;
 		}
 
-		public async Task InvokeAsync(HttpContext context, BloggingContext bloggingContext, IEnumerable<IModelConverter> modelConverters, IEnumerable<IExpressionFactory> expressionFactories) {
+		protected EntityInfo BuildEntityInfo(IEntityType entityType, HashSet<IEntityType> cache = null) {
+			if (cache == null) cache = new HashSet<IEntityType>();
+			cache.Add(entityType);
+			var navigations = entityType.GetNavigations().Select(navigation => {
+				return new Navigation() {
+					PropertyName = navigation.Name,
+					InversePropertyName = navigation.FindInverse()?.Name
+				};
+			}).ToArray();
+			var key = entityType.FindPrimaryKey().Properties.Select(property => property.Name).ToArray();
+			var foreignKeys = entityType.GetForeignKeys().Select(fk => {
+				return new ForeignKey {
+					PrincipalToDependent = fk.PrincipalToDependent?.Name,
+					Properties = fk.Properties.Select(p => p.Name).ToArray(),
+					Dependent = fk.DeclaringEntityType.ClrType.Name,
+					Principal = fk.PrincipalEntityType.ClrType.Name,
+				};
+			}).ToArray();
+			return new EntityInfo {
+				Name = entityType.ClrType.Name,
+				ForeignKeys = foreignKeys,
+				Key = key,
+				Navigations = navigations.ToDictionary(n => n.PropertyName, n => n)
+			};
+		}
+
+		public async Task InvokeAsync(HttpContext context, BloggingContext bloggingContext, IEnumerable<IModelConverter> modelConverters, IEnumerable<IExpressionFactory> expressionFactories, AnonymousTypeBuilder anonymousTypeBuilder) {
 			string query = null;
 			using (var reader = new StreamReader(context.Request.Body)) {
 				query = await reader.ReadToEndAsync();
@@ -40,7 +71,7 @@ namespace Darkengines.Expressions.Web {
 
 			// Building the expression
 
-			// The context olds the factories
+			// The context holds the factories
 			var expressionFactoryContext = new ExpressionFactoryContext() {
 				ExpressionFactories = expressionFactories
 			};
@@ -48,8 +79,28 @@ namespace Darkengines.Expressions.Web {
 			var dbSetProperties = bloggingContext.GetType().GetProperties().Where(property => property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>)).ToArray();
 			var types = dbSetProperties.Select(dbSetProperty => dbSetProperty.PropertyType.GetGenericArguments()[0]).ToArray();
 
-			var generator = new JSchemaGenerator();
-			var schemas = types.ToDictionary(type => type.Name, type => generator.Generate(type));
+			var rootTypeShape = new HashSet<Tuple<Type, string>>( types.Select(t => new Tuple<Type, string>(t, t.Name)).ToArray());
+			var rootType = anonymousTypeBuilder.BuildAnonymousType(rootTypeShape);
+
+			var generator = new JSchemaGenerator() {
+				SchemaIdGenerationHandling = SchemaIdGenerationHandling.TypeName,
+				SchemaReferenceHandling = SchemaReferenceHandling.All
+			};
+			var rootTypeSchema = generator.Generate(rootType);
+			
+			var schema = await JsonSchema4.FromTypeAsync(rootType);
+			
+			var schemas = types.ToDictionary(type => type.Name, type => generator.Generate(type, true));
+			var contractResolver = JsonSchema4.CreateJsonSerializerContractResolver(SchemaType.JsonSchema);
+			JsonSchemaReferenceUtilities.UpdateSchemaReferencePaths(schema, false, contractResolver);
+
+			var entityInfos = types.Join(bloggingContext.Model.GetEntityTypes(), clrType => clrType, et => et.ClrType, (clrType, entityType) => new { ClrType = clrType, EntityType = entityType })
+			.Select(map => {
+				return BuildEntityInfo(map.EntityType);
+			}).ToArray();
+
+			var tsGenerator = new TypeScriptGenerator(schema);
+			var ts = tsGenerator.GenerateFile();
 
 			var expressionFactoryScope = new ExpressionFactoryScope(null, null) {
 				Variables = new Dictionary<string, Expression>() {
@@ -58,6 +109,9 @@ namespace Darkengines.Expressions.Web {
 					{ nameof(bloggingContext.Posts), Expression.Constant(bloggingContext.Posts) },
 					{ nameof(bloggingContext.Comments), Expression.Constant(bloggingContext.Comments) },
 					{ "Schemas", Expression.Constant(schemas) },
+					{ "RootSchema", Expression.Constant(schema) },
+					{ "JsonRootSchema", Expression.Constant(schema.ToJson()) },
+					{ "EntityInfos", Expression.Constant(entityInfos.ToDictionary(ei => ei.Name, ei => ei)) }
 				}
 			};
 			var rootExpressionFactory = expressionFactories.FindExpressionFactoryFor(model, expressionFactoryContext, expressionFactoryScope);
@@ -68,12 +122,16 @@ namespace Darkengines.Expressions.Web {
 			context.Response.ContentType = "application/json";
 			context.Response.StatusCode = 200;
 			var writer = new StreamWriter(context.Response.Body, Encoding.UTF8);
-			var serializer = new JsonSerializer() {
-				Formatting = Formatting.Indented,
-				ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
-				PreserveReferencesHandling = PreserveReferencesHandling.All
-			};
-			serializer.Serialize(writer, result);
+			if (expression.Type == typeof(JsonSchema4)) {
+				await writer.WriteAsync(((JsonSchema4)result).ToJson());
+			} else {
+				var serializer = new JsonSerializer() {
+					Formatting = Formatting.Indented,
+					ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
+					PreserveReferencesHandling = PreserveReferencesHandling.All
+				};
+				serializer.Serialize(writer, result);
+			}
 			await writer.FlushAsync();
 			//await _next(context);
 		}

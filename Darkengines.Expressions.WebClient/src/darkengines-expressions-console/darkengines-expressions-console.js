@@ -74,7 +74,7 @@ class DarkenginesExpressionsConsole extends PolymerElement {
 	}
 	inputKeyDown(e) {
 		if (e.keyCode === 13) {
-			fetch('https://localhost:8080', {
+			fetch('http://192.168.1.2:8080', {
 				method: 'POST',
 				headers: {
 					'Accept': 'application/json',
