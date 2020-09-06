@@ -1,24 +1,18 @@
-﻿using Darkengines.Expressions.Entities;
-using Darkengines.Expressions.Factories;
-using Darkengines.Expressions.ModelConverters;
-using Darkengines.Expressions.Web.Entities;
+﻿using Darkengines.Expressions.Converters;
+using Darkengines.Expressions.Entities;
+using Darkengines.Expressions.Rules;
+using Darkengines.Expressions.Sample;
+using System.Linq.Expressions;
 using DarkEngines.Expressions;
 using Esprima;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Schema;
-using Newtonsoft.Json.Schema.Generation;
-using NJsonSchema;
-using NJsonSchema.CodeGeneration.TypeScript;
-using NJsonSchema.Generation;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -56,84 +50,100 @@ namespace Darkengines.Expressions.Web {
 			};
 		}
 
-		public async Task InvokeAsync(HttpContext context, BloggingContext bloggingContext, IEnumerable<IModelConverter> modelConverters, IEnumerable<IExpressionFactory> expressionFactories, AnonymousTypeBuilder anonymousTypeBuilder) {
-			string query = null;
-			using (var reader = new StreamReader(context.Request.Body)) {
-				query = await reader.ReadToEndAsync();
+		public async Task<Task> InvokeAsync(HttpContext httpContext,
+			ExpressionConverterResolver expressionConverterResolver,
+			IEnumerable<IExtensionMethodsProvider> extensionMethodsProviders,
+			IEnumerable<IStaticMethodsProvider> staticMethodsProviders,
+			IQueryProviderProvider queryProviderProvider,
+			IEnumerable<IIdentifier> Identifiers,
+			IEnumerable<IIdentifierProvider> identifierProviders,
+			JsonSerializer jsonSerializer,
+			IEnumerable<IRuleMapsProvider> ruleMapsProviders,
+			IEnumerable<IRuleMap> ruleMaps,
+			IEnumerable<ICustomMethodCallExpressionConverter> customMethodCallExpressionConverters,
+			IIdentityProvider identityProvider,
+			System.Text.Json.JsonSerializerOptions jsonSerializerOptions) {
+			Esprima.Ast.Expression jsExpression = null;
+			string payload = null;
+			using (var reader = new StreamReader(httpContext.Request.Body)) {
+				payload = await reader.ReadToEndAsync();
+				var parser = new JavaScriptParser(payload, new ParserOptions() {
+					Range = true
+				});
+				jsExpression = parser.ParseExpression();
 			}
-			// Parsing Ecmascript
-			var parser = new JavaScriptParser(query);
-			var jsExpression = parser.ParseExpression();
+			// Converting parsed Ecmascript expression to expression model
 
-			var modelConversionContext = new ModelConverterContext() { ModelConverters = modelConverters };
-			var rootConverter = modelConverters.FindModelConverterFor(jsExpression, modelConversionContext);
-			var model = rootConverter.Convert(jsExpression, modelConversionContext);
-
+			// The context olds the converters
 			// Building the expression
 
-			// The context holds the factories
-			var expressionFactoryContext = new ExpressionFactoryContext() {
-				ExpressionFactories = expressionFactories
+			var currentUser = identityProvider.GetIdentity().User;
+
+			// The context olds the factories
+			ruleMaps = ruleMaps.Union(ruleMapsProviders.SelectMany(rmp => rmp.RuleMaps));
+			var expressionConvertersContext = new ExpressionConverterContext() {
+				ExpressionConverterResolver = expressionConverterResolver,
+				ExtensionMethods = extensionMethodsProviders.SelectMany(emp => emp.Methods),
+				StaticMethods = staticMethodsProviders.SelectMany(emp => emp.Methods),
+				RuleMapRegistry = new RuleMapRegistry(ruleMaps, Enumerable.Empty<IRuleMapsProvider>()),
+				RuleMaps = ruleMaps,
+				CustomMethodCallExpressionConverters = customMethodCallExpressionConverters,
+				securityContext = new Context() { User = currentUser },
+				Source = payload
 			};
-
-			var dbSetProperties = bloggingContext.GetType().GetProperties().Where(property => property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>)).ToArray();
-			var types = dbSetProperties.Select(dbSetProperty => dbSetProperty.PropertyType.GetGenericArguments()[0]).ToArray();
-
-			var rootTypeShape = new HashSet<Tuple<Type, string>>( types.Select(t => new Tuple<Type, string>(t, t.Name)).ToArray());
-			var rootType = anonymousTypeBuilder.BuildAnonymousType(rootTypeShape);
-
-			var generator = new JSchemaGenerator() {
-				SchemaIdGenerationHandling = SchemaIdGenerationHandling.TypeName,
-				SchemaReferenceHandling = SchemaReferenceHandling.All
-			};
-			var rootTypeSchema = generator.Generate(rootType);
-			
-			var schema = await JsonSchema4.FromTypeAsync(rootType);
-			
-			var schemas = types.ToDictionary(type => type.Name, type => generator.Generate(type, true));
-			var contractResolver = JsonSchema4.CreateJsonSerializerContractResolver(SchemaType.JsonSchema);
-			JsonSchemaReferenceUtilities.UpdateSchemaReferencePaths(schema, false, contractResolver);
-
-			var entityInfos = types.Join(bloggingContext.Model.GetEntityTypes(), clrType => clrType, et => et.ClrType, (clrType, entityType) => new { ClrType = clrType, EntityType = entityType })
-			.Select(map => {
-				return BuildEntityInfo(map.EntityType);
-			}).ToArray();
-
-			var tsGenerator = new TypeScriptGenerator(schema);
-			var ts = tsGenerator.GenerateFile();
-
-			var expressionFactoryScope = new ExpressionFactoryScope(null, null) {
-				Variables = new Dictionary<string, Expression>() {
-					{ nameof(bloggingContext.Users), Expression.Constant(bloggingContext.Users) },
-					{ nameof(bloggingContext.Blogs), Expression.Constant(bloggingContext.Blogs) },
-					{ nameof(bloggingContext.Posts), Expression.Constant(bloggingContext.Posts) },
-					{ nameof(bloggingContext.Comments), Expression.Constant(bloggingContext.Comments) },
-					{ "Schemas", Expression.Constant(schemas) },
-					{ "RootSchema", Expression.Constant(schema) },
-					{ "JsonRootSchema", Expression.Constant(schema.ToJson()) },
-					{ "EntityInfos", Expression.Constant(entityInfos.ToDictionary(ei => ei.Name, ei => ei)) }
-				}
-			};
-			var rootExpressionFactory = expressionFactories.FindExpressionFactoryFor(model, expressionFactoryContext, expressionFactoryScope);
-			var expression = rootExpressionFactory.BuildExpression(model, expressionFactoryContext, expressionFactoryScope);
-			// Executing the resulting expression
-			var function = Expression.Lambda<Func<object>>(Expression.Convert(expression, typeof(object))).Compile();
-			var result = function();
-			context.Response.ContentType = "application/json";
-			context.Response.StatusCode = 200;
-			var writer = new StreamWriter(context.Response.Body, Encoding.UTF8);
-			if (expression.Type == typeof(JsonSchema4)) {
-				await writer.WriteAsync(((JsonSchema4)result).ToJson());
-			} else {
-				var serializer = new JsonSerializer() {
-					Formatting = Formatting.Indented,
-					ReferenceLoopHandling = ReferenceLoopHandling.Serialize,
-					PreserveReferencesHandling = PreserveReferencesHandling.All
-				};
-				serializer.Serialize(writer, result);
+			//var identifiers = queryProviderProvider.Context.ToDictionary(kp => kp.Key, kp => (Expression)Expression.Constant(kp.Value));
+			//foreach (var identifier in Identifiers) identifiers[identifier.Name] = identifier.Expression;
+			var identifiers = new Dictionary<string, System.Linq.Expressions.Expression>();
+			foreach (var identifierProvider in identifierProviders) {
+				foreach (var identifier in identifierProvider.Identifiers) identifiers[identifier.Key] = identifier.Value;
 			}
-			await writer.FlushAsync();
-			//await _next(context);
+			foreach (var identifier in Identifiers) identifiers[identifier.Name] = identifier.Expression;
+			// The scope olds the target type, the generic parameter map and varibales set.
+			// Note that the target type is null since we cannot predict it at this stage.
+			// Note that the generic parameter map is null since we cannot predict it at this stage
+			var expressionConvertersScope = new ExpressionConverterScope(null, null) {
+				Variables = identifiers
+			};
+			var expression = expressionConverterResolver.Convert(jsExpression, expressionConvertersContext, expressionConvertersScope, false);
+			if (expression.Type != typeof(void) && expression.Type != typeof(Task)) {
+				Func<Task<object>> asyncFunction = null;
+				if (expression.Type.IsGenericType && expression.Type.GetGenericTypeDefinition() == typeof(Task<>)) {
+					var f = System.Linq.Expressions.Expression.Lambda<Func<Task>>(expression).Compile();
+					asyncFunction = async () => {
+						var task = f();
+						await task;
+						return (object)((dynamic)task).Result;
+					};
+				} else {
+					var function = System.Linq.Expressions.Expression.Lambda<Func<object>>(System.Linq.Expressions.Expression.Convert(expression, typeof(object))).Compile();
+					asyncFunction = new Func<Task<object>>(() => Task.FromResult(function()));
+				}
+				var result = await asyncFunction();
+				httpContext.Response.Headers.Add("Content-Type", "application/json");
+				httpContext.Response.Headers.Add("charset", "utf8");
+				var queryable = result as IQueryable<object>;
+				if (queryable != null) {
+					result = queryable.ToArray();
+				}
+				using (var streamWriter = new StreamWriter(httpContext.Response.Body)) {
+					using (var jsonWriter = new JsonTextWriter(streamWriter)) {
+						jsonSerializer.Serialize(jsonWriter, result);
+					}
+				}
+			} else {
+				Func<Task> asyncAction = null;
+				if (expression.Type == typeof(Task)) {
+					asyncAction = System.Linq.Expressions.Expression.Lambda<Func<Task>>(expression).Compile();
+				} else {
+					var a = System.Linq.Expressions.Expression.Lambda<Action>(expression).Compile();
+					asyncAction = new Func<Task>(() => {
+						a();
+						return Task.CompletedTask;
+					});
+				}
+				await asyncAction();
+			}
+			return Task.CompletedTask;
 		}
 	}
 }

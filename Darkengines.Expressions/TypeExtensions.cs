@@ -1,9 +1,10 @@
-﻿using System;
+﻿using Darkengines.Expressions;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
 
 namespace DarkEngines.Expressions {
 	public static class TypeExtensions {
@@ -28,6 +29,58 @@ namespace DarkEngines.Expressions {
 			} else {
 				return type.IsGenericParameter ? resolved[type] : type;
 			}
+		}
+		public static bool GenericAssignableFrom(this Type to, Type from, Dictionary<Type, Type> genericArgumentMapping = null) {
+			if (to.ContainsGenericParameters) {
+				if (!from.ContainsGenericParameters) {
+					if (to.IsGenericParameter) {
+						var constraints = to.GetGenericParameterConstraints();
+						var isAssignable = constraints.All(constraint => constraint.IsAssignableFrom(from));
+						if (genericArgumentMapping != null && isAssignable) {
+							genericArgumentMapping[to] = from;
+						}
+						return isAssignable;
+					}
+					var toGenericTypeDefinition = to.GetGenericTypeDefinition();
+					var fromGenericTypeDefinition = from.IsGenericType ? from.GetGenericTypeDefinition() : from;
+					if (toGenericTypeDefinition.BaseType == typeof(LambdaExpression)) toGenericTypeDefinition = toGenericTypeDefinition.BaseType;
+					if (fromGenericTypeDefinition.BaseType == typeof(LambdaExpression)) toGenericTypeDefinition = fromGenericTypeDefinition.BaseType;
+					if (toGenericTypeDefinition.IsAssignableFrom(fromGenericTypeDefinition) || fromGenericTypeDefinition.GetInterfaces().Any(@interface => @interface.IsGenericType && toGenericTypeDefinition.IsAssignableFrom(@interface.GetGenericTypeDefinition()))) {
+						var fromGenericArguments = from.HasElementType ? new[] { from.GetElementType() } : from.GenericTypeArguments;
+						var toGenericArguments = to.GenericTypeArguments;
+						return fromGenericArguments.Zip(toGenericArguments, (fromGenericArgument, toGenericArgument) => (fromGenericArgument, toGenericArgument)).All(tuple => tuple.toGenericArgument.GenericAssignableFrom(tuple.fromGenericArgument, genericArgumentMapping));
+					}
+				}
+			} else {
+				return to.IsAssignableFrom(from) || from.GetInterfaces().Any(@interface => to.IsAssignableFrom(@interface));
+			}
+			return false;
+		}
+		public static MethodInfo FindMethodInfo(this IEnumerable<MethodInfo> methodInfos, string name, Type[] argumentTypes) {
+			var methodInfoGenericArgumentsTuple = methodInfos.Where(mi => {
+				var parameters = mi.GetParameters();
+				var maxArgumentCount = parameters.Length;
+				var minArgumentCount = parameters.Where(p => !p.IsOptional).Count();
+				return mi.Name == name
+				&& argumentTypes.Length >= minArgumentCount
+				&& argumentTypes.Length <= maxArgumentCount;
+			}).Select(mi => {
+				var parameters = mi.GetParameters();
+				var genericArgumentMapping = new Dictionary<Type, Type>();
+				var assignable = parameters.Zip(argumentTypes, (parameter, argumentType) => parameter.ParameterType.GenericAssignableFrom(argumentType, genericArgumentMapping)).All(isAssignable => isAssignable);
+				return (assignable, genericArgumentMapping, methodInfo: mi);
+			}).FirstOrDefault(tuple => tuple.assignable);
+			return methodInfoGenericArgumentsTuple.assignable ? methodInfoGenericArgumentsTuple.methodInfo.MakeGenericMethod(methodInfoGenericArgumentsTuple.genericArgumentMapping.Values.ToArray()) : null;
+		}
+		public static MethodInfo[] FindMethodInfos(this IEnumerable<MethodInfo> methodInfos, string name, int argumentCount) {
+			return methodInfos.Where(mi => {
+				var parameters = mi.GetParameters();
+				var maxArgumentCount = parameters.Length;
+				var minArgumentCount = parameters.Where(p => !p.IsOptional).Count();
+				return mi.Name == name.ToPascalCase()
+				&& argumentCount >= minArgumentCount
+				&& argumentCount <= maxArgumentCount;
+			}).ToArray();
 		}
 	}
 }

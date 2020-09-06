@@ -3,24 +3,29 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
 
 namespace DarkEngines.Expressions {
 	public class AnonymousTypeBuilder {
 		protected AssemblyBuilder AssemblyBuilder { get; }
 		protected ModuleBuilder ModuleBuilder { get; }
+		public Assembly Assembly { get { return AssemblyBuilder; } }
+		protected IDictionary<HashSet<Tuple<Type, string>>, Type> Cache { get; } = new Dictionary<HashSet<Tuple<Type, string>>, Type>(HashSet<Tuple<Type, string>>.CreateSetComparer());
+
 		public AnonymousTypeBuilder(string assemblyName, string moduleName) {
 			AssemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName(assemblyName), AssemblyBuilderAccess.Run);
 			ModuleBuilder = AssemblyBuilder.DefineDynamicModule(moduleName);
 		}
 		public Type BuildAnonymousType(HashSet<Tuple<Type, string>> propertySet, string typeName = null) {
+			Type anonymousType;
+			if (Cache.TryGetValue(propertySet, out anonymousType)) return anonymousType;
 			var dynamicTypeName = typeName ?? Guid.NewGuid().ToString();
 			var typeBuilder = ModuleBuilder.DefineType(dynamicTypeName, TypeAttributes.Public);
-			
+
 			foreach (var tuple in propertySet) {
 				EmitAutoProperty(typeBuilder, tuple.Item2, tuple.Item1);
 			}
 			var dynamicType = typeBuilder.CreateType();
+			Cache[propertySet] = dynamicType;
 			return dynamicType;
 		}
 		protected PropertyInfo EmitAutoProperty(TypeBuilder typeBuilder, string propertyName, Type propertyType) {

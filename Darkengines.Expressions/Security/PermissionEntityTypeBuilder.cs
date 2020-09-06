@@ -2,36 +2,48 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using QuickGraph;
-using QuickGraph.Algorithms.TopologicalSort;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Text;
 
 namespace Darkengines.Expressions.Security {
 	public class PermissionEntityTypeBuilder {
-		protected DbContext DbContext { get; }
+		protected IModelProvider ModelProvider { get; }
+		protected IModel Model { get; }
 		protected AssemblyBuilder AssemblyBuilder { get; }
 		protected ModuleBuilder ModuleBuilder { get; }
-		public IEnumerable<Type> Types { get; }
-		public Dictionary<Type, Type> TypeMap { get; }
-		public Dictionary<PropertyInfo, PropertyInfo> PropertyMap { get; } = new Dictionary<PropertyInfo, PropertyInfo>();
-		public Dictionary<PropertyInfo, PropertyInfo> PermissionPropertyMap { get; } = new Dictionary<PropertyInfo, PropertyInfo>();
-		public PermissionEntityTypeBuilder(DbContext dbContext) {
-			DbContext = dbContext;
-			AssemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("Dynamic"), AssemblyBuilderAccess.Run);
-			ModuleBuilder = AssemblyBuilder.DefineDynamicModule(GetType().Namespace);
-			var entityTypes = dbContext.Model.GetEntityTypes();
-			var cache = new Dictionary<IEntityType, TypeBuilder>();
-			var permissionTypes = BuildPermissionTypes(entityTypes, cache).ToArray();
-			TypeMap = cache.ToDictionary(pair => pair.Key.ClrType, pair => pair.Value.CreateType());
-			PropertyMap = PropertyMap.ToDictionary(pair => pair.Key, pair => TypeMap[pair.Key.DeclaringType].GetProperty(pair.Value.Name));
-			PermissionPropertyMap = PermissionPropertyMap.ToDictionary(pair => pair.Key, pair => TypeMap[pair.Key.DeclaringType].GetProperty(pair.Value.Name));
-			Types = TypeMap.Values;
+		protected PermissionEntityTypeBuilderCache PermissionEntityTypeBuilderCache { get; }
+
+		public IEnumerable<IEntityType> Types { get => PermissionEntityTypeBuilderCache.Types; }
+		public IDictionary<IEntityType, Type> TypeMap { get => PermissionEntityTypeBuilderCache.TypeMap; }
+		public IDictionary<IPropertyBase, PropertyInfo> PropertyMap { get => PermissionEntityTypeBuilderCache.PropertyMap; }
+		public IDictionary<IPropertyBase, PropertyInfo> PermissionPropertyMap { get => PermissionEntityTypeBuilderCache.PermissionPropertyMap; }
+
+		public PermissionEntityTypeBuilder(IModelProvider modelProvider, PermissionEntityTypeBuilderCache permissionEntityTypeBuilderCache) {
+			ModelProvider = modelProvider;
+			Model = ModelProvider.Model;
+			PermissionEntityTypeBuilderCache = permissionEntityTypeBuilderCache;
+			if (!PermissionEntityTypeBuilderCache.Initialized) {
+				lock (PermissionEntityTypeBuilderCache) {
+					if (!PermissionEntityTypeBuilderCache.Initialized) {
+						AssemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("Dynamic"), AssemblyBuilderAccess.Run);
+						ModuleBuilder = AssemblyBuilder.DefineDynamicModule(GetType().Namespace);
+						var entityTypes = modelProvider.Model.GetEntityTypes();
+						var cache = new Dictionary<IEntityType, TypeBuilder>();
+						var permissionTypes = BuildPermissionTypes(entityTypes, cache).ToArray();
+						PermissionEntityTypeBuilderCache = permissionEntityTypeBuilderCache;
+						PermissionEntityTypeBuilderCache.TypeMap = new ConcurrentDictionary<IEntityType, Type>(cache.ToDictionary(pair => pair.Key, pair => pair.Value.CreateType()));
+						PermissionEntityTypeBuilderCache.PropertyMap = new ConcurrentDictionary<IPropertyBase, PropertyInfo>(PermissionEntityTypeBuilderCache.PropertyMap.ToDictionary(pair => pair.Key, pair => PermissionEntityTypeBuilderCache.TypeMap[(IEntityType)pair.Key.DeclaringType].GetProperty(pair.Value.Name)));
+						PermissionEntityTypeBuilderCache.PermissionPropertyMap = new ConcurrentDictionary<IPropertyBase, PropertyInfo>(PermissionEntityTypeBuilderCache.PermissionPropertyMap.ToDictionary(pair => pair.Key, pair => PermissionEntityTypeBuilderCache.TypeMap[(IEntityType)pair.Key.DeclaringType].GetProperty(pair.Value.Name)));
+						PermissionEntityTypeBuilderCache.Types = PermissionEntityTypeBuilderCache.TypeMap.Keys;
+						PermissionEntityTypeBuilderCache.Initialized = true;
+					}
+				}
+			}
 		}
 
 		public IEnumerable<TypeBuilder> BuildPermissionTypes(IEnumerable<IEntityType> entityTypes, Dictionary<IEntityType, TypeBuilder> cache) {
@@ -46,21 +58,19 @@ namespace Darkengines.Expressions.Security {
 				cache[entityType] = typeBuilder;
 				var properties = entityType.GetProperties();
 				var navigations = entityType.GetNavigations();
-				EmitAutoProperty(typeBuilder, $"SelfPermission", typeof(Permission));
-				foreach (var property in properties) {
+				EmitAutoProperty(typeBuilder, $"SelfPermission", typeof(bool?));
+				foreach (var property in properties.Where(p => p.PropertyInfo != null)) {
 					var propertyBuilder = EmitAutoProperty(typeBuilder, property.Name, property.ClrType);
-					PropertyMap[property.PropertyInfo] = propertyBuilder;
-					var permissionPropertyInfo = EmitAutoProperty(typeBuilder, $"{property.Name}Permission", typeof(Permission));
-					PermissionPropertyMap[property.PropertyInfo] = permissionPropertyInfo;
+					PermissionEntityTypeBuilderCache.PropertyMap[property] = propertyBuilder;
+					var permissionPropertyInfo = EmitAutoProperty(typeBuilder, $"{property.Name}Permission", typeof(bool?));
+					PermissionEntityTypeBuilderCache.PermissionPropertyMap[property] = permissionPropertyInfo;
 				}
-				foreach (var navigation in navigations) {
-					if (navigation.IsCollection()) {
-						var permissionType = BuildPermissionType(navigation.GetTargetType(), cache);
-						var propertyBuilder = EmitAutoProperty(typeBuilder, navigation.Name, permissionType.MakeArrayType());
-						PropertyMap[navigation.PropertyInfo] = propertyBuilder;
-					}
-					var permissionPropertyInfo = EmitAutoProperty(typeBuilder, $"{navigation.Name}Permission", typeof(Permission));
-					PermissionPropertyMap[navigation.PropertyInfo] = permissionPropertyInfo;
+				foreach (var navigation in navigations.Where(p => p.PropertyInfo != null)) {
+					var permissionType = BuildPermissionType(navigation.GetTargetType(), cache);
+					var propertyBuilder = EmitAutoProperty(typeBuilder, navigation.Name, navigation.IsCollection() ? permissionType.MakeArrayType() : permissionType);
+					var permissionPropertyInfo = EmitAutoProperty(typeBuilder, $"{navigation.Name}Permission", typeof(bool?));
+					PermissionEntityTypeBuilderCache.PermissionPropertyMap[navigation] = permissionPropertyInfo;
+					PermissionEntityTypeBuilderCache.PropertyMap[navigation] = propertyBuilder;
 				}
 			}
 			return typeBuilder;

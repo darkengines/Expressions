@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Darkengines.Expressions.Entities {
+﻿namespace Darkengines.Expressions.Entities {
 	public class ForeignKey {
 		public string[] Properties { get; set; }
 		public string Dependent { get; set; }

@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Darkengines.Expressions.Security {
 	[Flags]
@@ -8,6 +6,9 @@ namespace Darkengines.Expressions.Security {
 		None = 0,
 		Read = 1,
 		Write = 2,
-		Delete= 4
+		Delete = 4,
+		Create = 8,
+		All = Read | Write | Delete |Create,
+		Admin = All | 16
 	}
 }

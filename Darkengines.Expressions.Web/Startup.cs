@@ -1,23 +1,12 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
-using Darkengines.Expressions.Factories;
-using Darkengines.Expressions.ModelConverters;
-using System.Linq.Expressions;
-using System.Collections.Generic;
-using Esprima;
-using System.IO;
 using System;
-using Newtonsoft.Json;
-using Darkengines.Expressions.Web.Entities;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json.Schema;
-using System.Globalization;
 using System.Reflection;
 using DarkEngines.Expressions;
+using Darkengines.Expressions.Sample;
 
 namespace Darkengines.Expressions.Web {
 	public static class License {
@@ -46,12 +35,9 @@ namespace Darkengines.Expressions.Web {
 			services
 			.AddLogging()
 			.AddEntityFrameworkSqlServer()
-			.AddExpressionFactories()
-			.AddEntityFrameworkLinqExtensions()
 			.AddCors()
 			.AddSingleton(new AnonymousTypeBuilder("Anonymous", "Anonymous"))
-			.AddLinqMethodCallExpressionFactories()
-			.AddModelConverters()
+			.AddHttpIdentityProvider()
 			.AddDbContext<BloggingContext>((serviceProvider, options) =>
 				options.UseSqlServer(Configuration.GetConnectionString("default"))
 			);

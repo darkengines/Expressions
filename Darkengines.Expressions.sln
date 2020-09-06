@@ -1,34 +1,20 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27924.0
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30128.36
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Darkengines.Expressions", "Darkengines.Expressions\Darkengines.Expressions.csproj", "{41C70BE3-D31B-49A7-80C8-A697E7F411D9}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Darkengines.Expressions.Tests", "Darkengines.Expressions.Tests\Darkengines.Expressions.Tests.csproj", "{5FA9F7EA-C4D2-491F-9BE6-CF9E87E77886}"
 EndProject
-Project("{E24C65DC-7377-472B-9ABA-BC803B73C61A}") = "Darkengines.Expressions.Typescript", "Darkengines.Expressions.Typescript\", "{F7621F26-1884-48F1-BEB4-53AC0434ADD0}"
-	ProjectSection(WebsiteProperties) = preProject
-		TargetFrameworkMoniker = ".NETFramework,Version%3Dv4.0"
-		Debug.AspNetCompiler.VirtualPath = "/localhost_57075"
-		Debug.AspNetCompiler.PhysicalPath = "Darkengines.Expressions.Typescript\"
-		Debug.AspNetCompiler.TargetPath = "PrecompiledWeb\localhost_57075\"
-		Debug.AspNetCompiler.Updateable = "true"
-		Debug.AspNetCompiler.ForceOverwrite = "true"
-		Debug.AspNetCompiler.FixedNames = "false"
-		Debug.AspNetCompiler.Debug = "True"
-		Release.AspNetCompiler.VirtualPath = "/localhost_57075"
-		Release.AspNetCompiler.PhysicalPath = "Darkengines.Expressions.Typescript\"
-		Release.AspNetCompiler.TargetPath = "PrecompiledWeb\localhost_57075\"
-		Release.AspNetCompiler.Updateable = "true"
-		Release.AspNetCompiler.ForceOverwrite = "true"
-		Release.AspNetCompiler.FixedNames = "false"
-		Release.AspNetCompiler.Debug = "False"
-		VWDPort = "57075"
-		SlnRelativePath = "Darkengines.Expressions.Typescript\"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Darkengines.Expressions.Web", "Darkengines.Expressions.Web\Darkengines.Expressions.Web.csproj", "{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{C9F75246-9C1D-48BD-97FF-7F9CEDEF075A}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Darkengines.Expressions.Web", "Darkengines.Expressions.Web\Darkengines.Expressions.Web.csproj", "{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Darkengines.Expression.Sample", "Darkengines.Expression.Sample\Darkengines.Expression.Sample.csproj", "{2D3CEA0C-5266-4534-A909-B32CDE845F12}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -44,14 +30,14 @@ Global
 		{5FA9F7EA-C4D2-491F-9BE6-CF9E87E77886}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5FA9F7EA-C4D2-491F-9BE6-CF9E87E77886}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5FA9F7EA-C4D2-491F-9BE6-CF9E87E77886}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F7621F26-1884-48F1-BEB4-53AC0434ADD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F7621F26-1884-48F1-BEB4-53AC0434ADD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F7621F26-1884-48F1-BEB4-53AC0434ADD0}.Release|Any CPU.ActiveCfg = Debug|Any CPU
-		{F7621F26-1884-48F1-BEB4-53AC0434ADD0}.Release|Any CPU.Build.0 = Debug|Any CPU
 		{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{08C1E9B5-20DD-425E-9C70-B31B78FC51F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2D3CEA0C-5266-4534-A909-B32CDE845F12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2D3CEA0C-5266-4534-A909-B32CDE845F12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2D3CEA0C-5266-4534-A909-B32CDE845F12}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2D3CEA0C-5266-4534-A909-B32CDE845F12}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
