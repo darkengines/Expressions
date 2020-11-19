@@ -1,4 +1,6 @@
 ﻿using Darkengines.Expressions.Rules;
+using DarkEngines.Expressions;
+using Microsoft.EntityFrameworkCore.Metadata;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 
@@ -15,8 +17,8 @@ namespace Darkengines.Expressions.Sample.Entities {
         public virtual ICollection<Comment> Comments { get; }
         public string Content { get; set; }
     }
-    public class PostRuleMap : RuleMap<Context, Post> {
-        public PostRuleMap(): base() {
+	public class PostRuleMap : RuleMap<Context, Post> {
+		public PostRuleMap(AnonymousTypeBuilder anonymousTypeBuilder, IModel model) : base(anonymousTypeBuilder, model) {
 		}
-    }
+	}
 }

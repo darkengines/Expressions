@@ -9,6 +9,9 @@ namespace Darkengines.Expressions {
 		public static MethodInfo ExtractMethodInfo<TDeclaringType, TMethod>(Expression<Func<TDeclaringType, TMethod>> methodAccessExpression) {
 			return (MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)methodAccessExpression.Body).Operand).Object).Value;
 		}
+		public static MethodInfo ExtractMethodInfo<TMethod>(Expression<Func<TMethod>> methodAccessExpression) {
+			return (MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)methodAccessExpression.Body).Operand).Object).Value;
+		}
 		public static MethodInfo ExtractGenericDefinitionMethodInfo<TDeclaringType, TMethod>(Expression<Func<TDeclaringType, TMethod>> methodAccessExpression) {
 			return ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)methodAccessExpression.Body).Operand).Object).Value).GetGenericMethodDefinition();
 		}

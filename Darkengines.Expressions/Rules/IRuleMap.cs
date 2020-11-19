@@ -1,4 +1,5 @@
-﻿using Darkengines.Expressions.Security;
+﻿using Darkengines.Expressions.Mutation;
+using Darkengines.Expressions.Security;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using System;
 using System.Collections.Generic;
@@ -14,14 +15,16 @@ namespace Darkengines.Expressions.Rules {
 		bool RequireProjection { get; }
 		bool ShouldApplyPermission { get; }
 		bool HasAnyInstancePermissionResolverExpression { get; }
+		Permission PropertiesDefaultPermission { get; }
 		bool HasAnyInstancePropertyPermissionResolverExpression(PropertyInfo propertyInfo, object key);
 		Permission? ResolveInstancePermission(object context, object instance);
 		Expression GetInstancePermissionResolverExpression(object context, Expression instanceExpression);
 		object ResolvePropertyCustom(object key, PropertyInfo propertyInfo, object context);
 		Expression ResolveInstancePropertyCustomResolverExpression(PropertyInfo propertyInfo, object key, object context, Expression instanceExpression);
 		Permission? ResolveMethodPermission(MethodInfo methodInfo, object context, params Type[] genericArguments);
+		Expression GetDefaultProjectionExpression(object context, Expression argumentExpression, IEnumerable<IRuleMap> ruleMaps);
 		Task<ActionResult> OnBeforeCreation(object context, object instance, EntityEntry entry, ActionResult actionResult);
-		Task OnAfterCreation(object context, object instance, EntityEntry entry);
+		Task OnAfterCreation(object context, object instance, EntityEntry entry, EntityMutationInfo entityMutationInfo);
 		Task<ActionResult> OnBeforeDeletion(object context, object instance, EntityEntry entry, ActionResult actionResult);
 		Task OnAfterDeletion(object context, object instance, EntityEntry entry);
 		Task<ActionResult> OnBeforeEdition(object context, object instance, EntityEntry entry, ActionResult actionResult);

@@ -1,5 +1,7 @@
 ﻿using Darkengines.Expressions.Rules;
 using Darkengines.Expressions.Security;
+using DarkEngines.Expressions;
+using Microsoft.EntityFrameworkCore.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -21,7 +23,7 @@ namespace Darkengines.Expressions.Sample.Entities {
 		public string HashedPassword { get; set; }
 	}
 	public class UserRuleMap : RuleMap<Context, User> {
-		public UserRuleMap(): base() {
+		public UserRuleMap(AnonymousTypeBuilder anonymousTypeBuilder, IModel model) : base(anonymousTypeBuilder, model) {
 		}
 	}
 }

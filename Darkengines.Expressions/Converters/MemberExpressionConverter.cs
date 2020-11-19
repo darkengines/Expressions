@@ -34,7 +34,8 @@ namespace Darkengines.Expressions.Converters {
 				//hasAccess = hasAccess || (hasInstancePermissionResolverExpression && !(propertyPermission.HasValue && !propertyPermission.Value));
 				//hasAccess = hasAccess || (!propertyPermission.HasValue && hasInstancePropertyPermissionResolverExpression);
 
-				var hasAccess = true;
+				var hasAccess = ruleMap.PropertiesDefaultPermission == Permission.Read;
+				
 
 				var propertyAccessExpression = (System.Linq.Expressions.Expression)System.Linq.Expressions.Expression.MakeMemberAccess(objectExpression, propertyInfo);
 				if (hasInstancePropertyPermissionResolverExpression) {

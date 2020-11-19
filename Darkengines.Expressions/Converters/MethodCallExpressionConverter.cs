@@ -12,8 +12,13 @@ namespace Darkengines.Expressions.Converters {
 		public override Esprima.Ast.Nodes NodeType => Esprima.Ast.Nodes.CallExpression;
 		public override (Expression Expression, ExpressionConversionResult ExpressionConversionResult) Convert(Esprima.Ast.CallExpression methodCallExpression, ExpressionConverterContext context, ExpressionConverterScope scope, bool allowTerminal, params Type[] genericArguments) {
 			var memberExpression = methodCallExpression.Callee as Esprima.Ast.MemberExpression;
+			Esprima.Ast.Identifier methodIdentifier = null;
+			if (memberExpression != null) {
+				methodIdentifier = (Esprima.Ast.Identifier)memberExpression.Property;
+			} else {
+				methodIdentifier = (Esprima.Ast.Identifier)methodCallExpression.Callee;
+			}
 			var arguments = methodCallExpression.Arguments.Cast<Esprima.Ast.INode>().ToArray();
-			var methodIdentifier = (Esprima.Ast.Identifier)memberExpression.Property;
 			MethodInfo methodInfo = null;
 			Expression instanceExpression = null;
 			Expression instanceExpressionDump = null;
@@ -21,7 +26,7 @@ namespace Darkengines.Expressions.Converters {
 			ExpressionConversionResult expressionConversionResult = null;
 			if (memberExpression == null) {
 				//method is static
-				(methodInfo, argumentsExpressions, expressionConversionResult) = FindMethodInfo(context.StaticMethods.FindMethodInfos(methodInfo.Name, arguments.Count()).ToArray(), arguments, context, scope);
+				(methodInfo, argumentsExpressions, expressionConversionResult) = FindMethodInfo(context.StaticMethods.FindMethodInfos(methodIdentifier.Name, arguments.Count()).ToArray(), arguments, context, scope);
 			} else {
 				//method is not static
 				instanceExpression = instanceExpressionDump = context.ExpressionConverterResolver.Convert(memberExpression.Object, context, scope, true);
@@ -128,20 +133,19 @@ namespace Darkengines.Expressions.Converters {
 				}
 				if (isValid) {
 					var genericArguments = methodInfoCandidate.IsGenericMethod ? methodInfoCandidate.GetGenericArguments().Select(ga => scope.GenericTypeResolutionMap[ga]).ToArray() : new Type[0];
-					if (instanceExpression != null) {
-						var ruleMap = context.RuleMapRegistry.GetRuleMap(instanceExpression.Type, context.securityContext);
-						if (ruleMap != null) {
-							permission = ruleMap.ResolveMethodPermission(methodInfoCandidate, context.securityContext, genericArguments);
-							expressionConversionResult.ShouldApplyProjection = ruleMap.ShouldProjectForMethod(methodInfoCandidate, context.securityContext, genericArguments);
-							expressionConversionResult.ShouldApplyFilter = ruleMap.ShouldFilterForMethod(methodInfoCandidate, context.securityContext, genericArguments);
-						}
+					var ruleMap = context.RuleMapRegistry.GetRuleMap((instanceExpression?.Type) ?? methodInfoCandidate.DeclaringType, context.securityContext);
+					if (ruleMap != null) {
+						permission = ruleMap.ResolveMethodPermission(methodInfoCandidate, context.securityContext, genericArguments);
+						expressionConversionResult.ShouldApplyProjection = ruleMap.ShouldProjectForMethod(methodInfoCandidate, context.securityContext, genericArguments);
+						expressionConversionResult.ShouldApplyFilter = ruleMap.ShouldFilterForMethod(methodInfoCandidate, context.securityContext, genericArguments);
+
 					}
 
 					methodInfo = methodInfoCandidate.IsGenericMethod ? methodInfoCandidate.MakeGenericMethod(genericArguments) : methodInfoCandidate;
 					argumentsExpressions = methodInfoCandidateArgumentsExpressions.ToArray();
 
 					if (!context.IsAdmin && (permission == null || !permission.Value.HasFlag(Permission.Read))) {
-						throw new UnauthorizedAccessException($"You do not have access to method {methodInfo.Name} on type {instanceExpression.Type}.");
+						throw new UnauthorizedAccessException($"You do not have access to method {methodInfo.Name} on type {(instanceExpression?.Type) ?? methodInfo.DeclaringType}.");
 					}
 				}
 				methodInfoCandidateIndex++;

@@ -48,7 +48,7 @@ namespace Darkengines.Expressions.Web {
 			if (env.IsDevelopment()) {
 				app.UseDeveloperExceptionPage();
 			}
-			app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod().AllowCredentials());
+			app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 			app.UseExpressions();
 		}
 	}

@@ -25,19 +25,23 @@ namespace Darkengines.Expressions.Mutation {
 		public ISet<PropertyPropertyTuple> PropertyTuples { get; }
 		public ISet<NavigationPropertyTuple> ReferenceTuples { get; }
 		public ISet<NavigationPropertyTuple> CollectionTuples { get; }
+		public ISet<object> Contexts { get; set; }
 		public MutationContext MutationContext { get; }
 		public PropertyInfo SelfPermissionProperty { get; }
 		public IRuleMap RuleMap { get; }
 		public object Entity { get; }
 		public Type PermissionType { get; }
 		public IKey PrimaryKey { get; }
+		public bool Root { get; set; } = false;
 		protected MethodInfo QueryMethodInfo { get; } = ExpressionHelper.ExtractMethodInfo<DbContext, Func<IQueryable<object>>>(context => context.Set<object>).GetGenericMethodDefinition();
 		protected MethodInfo WhereMethodInfo { get; } = ExpressionHelper.ExtractMethodInfo<IQueryable<object>, Func<Expression<Func<object, bool>>, IQueryable<object>>>(context => context.Where).GetGenericMethodDefinition();
 		protected MethodInfo SelectMethodInfo { get; } = ExpressionHelper.ExtractMethodInfo<IQueryable<object>, Func<Expression<Func<object, object>>, IQueryable<object>>>(queryable => queryable.Select).GetGenericMethodDefinition();
 		protected MethodInfo FirstOrDefaultMethodInfo { get; } = ExpressionHelper.ExtractMethodInfo<IQueryable<object>, Func<object>>(queryable => queryable.FirstOrDefault).GetGenericMethodDefinition();
+		public JObject JObject { get; }
 		protected bool IsReference { get; }
 		public EntityMutationInfo(IEntityType entityType, JObject jObject, MutationContext mutationContext) {
 			IsReference = jObject.ContainsKey("$ref");
+			JObject = jObject;
 			MutationContext = mutationContext;
 			EntityType = entityType;
 			Properties = new Dictionary<IProperty, PropertyMutationInfo>();
@@ -68,6 +72,22 @@ namespace Darkengines.Expressions.Mutation {
 			var isPrimaryKeySet = primaryKeyTuples.Length == PrimaryKey.Properties.Count;
 			var nonGeneratedPropertyTuples = PropertyTuples.Where(pt => !pt.Property.ValueGenerated.HasFlag(ValueGenerated.OnAdd));
 
+			if (jObject.ContainsKey("$isCreation")) {
+				State = EntityState.Added;
+			} else if (isPrimaryKeySet) {
+				if (jObject.ContainsKey("$isDeletion")) {
+					State = EntityState.Deleted;
+				} else if (jObject.ContainsKey("$isEdition") || nonGeneratedPropertyTuples.Any() || References.Values.Any(@ref => @ref.IsModified) || Collections.Values.Any(col => col.IsModified)) {
+					State = EntityState.Modified;
+				} else {
+					State = EntityState.Unchanged;
+				}
+			} else if (PrimaryKey.Properties[0].ValueGenerated == ValueGenerated.OnAdd) {
+				State = EntityState.Added;
+			} else {
+				State = EntityState.Unchanged;
+			}
+
 			foreach (var propertyTuple in PropertyTuples) {
 				var value = propertyTuple.JProperty.Value.ToObject(propertyTuple.Property.ClrType, mutationContext.JsonSerializer);
 				propertyTuple.Property.AsProperty().Setter.SetClrValue(Entity, value);
@@ -89,6 +109,8 @@ namespace Darkengines.Expressions.Mutation {
 								propertyValue.Add(keyProperty1.Name.ToCamelCase(), JToken.FromObject(value));
 							}
 							reference.TargetEntityMutationInfo = new EntityMutationInfo(containingForeignKey.PrincipalEntityType, propertyValue, MutationContext);
+							reference.TargetEntityMutationInfo.Root = State == EntityState.Added;
+
 						} else {
 							keyProperty1.AsProperty().Setter.SetClrValue(reference.TargetEntityMutationInfo.Entity, propertyTuple.Property.GetGetter().GetClrValue(Entity));
 						}
@@ -97,15 +119,27 @@ namespace Darkengines.Expressions.Mutation {
 			}
 			foreach (var referenceTuple in ReferenceTuples) {
 				var referencedEntityMutationInfo = References[referenceTuple.Navigation].TargetEntityMutationInfo;
-				if (referencedEntityMutationInfo == null) References[referenceTuple.Navigation].TargetEntityMutationInfo = referencedEntityMutationInfo = new EntityMutationInfo(referenceTuple.Navigation.GetTargetType(), (JObject)referenceTuple.JProperty.Value, MutationContext);
+				if (!referenceTuple.Navigation.IsDependentToPrincipal() && isPrimaryKeySet) {
+					foreach (var fk in referenceTuple.Navigation.ForeignKey.Properties) {
+						(referenceTuple.JProperty.Value as JObject)[fk.Name] = new JValue(fk.FindFirstPrincipal().AsProperty().Getter.GetClrValue(Entity));
+					}
+				}
+				if (referencedEntityMutationInfo == null) {
+					References[referenceTuple.Navigation].TargetEntityMutationInfo = referencedEntityMutationInfo = new EntityMutationInfo(referenceTuple.Navigation.GetTargetType(), (JObject)referenceTuple.JProperty.Value, MutationContext);
+					referencedEntityMutationInfo.Root = State == EntityState.Added;
+				}
 				References[referenceTuple.Navigation].IsModified = true;
 				References[referenceTuple.Navigation].IsTouched = true;
 				referenceTuple.Navigation.AsNavigation().Setter.SetClrValue(Entity, References[referenceTuple.Navigation].TargetEntityMutationInfo.Entity);
 				foreach (var foreignKeyProperty in referenceTuple.Navigation.ForeignKey.Properties) {
-					var fixedForeignKeyProperty = referenceTuple.Navigation.IsDependentToPrincipal() ? foreignKeyProperty : foreignKeyProperty.FindFirstPrincipal();
-					Properties[fixedForeignKeyProperty].IsModified = true;
-					Properties[fixedForeignKeyProperty].IsTouched = true;
-					fixedForeignKeyProperty.AsProperty().Setter.SetClrValue(Entity, fixedForeignKeyProperty.FindFirstPrincipal().AsProperty().Getter.GetClrValue(referencedEntityMutationInfo.Entity));
+					var isDependentToPrincipal = referenceTuple.Navigation.IsDependentToPrincipal();
+					var fixedForeignKeyProperty = isDependentToPrincipal ? foreignKeyProperty : foreignKeyProperty.FindFirstPrincipal();
+					var principalForeignKeyProperty = isDependentToPrincipal ? foreignKeyProperty.FindFirstPrincipal() : foreignKeyProperty;
+					if (!Properties[fixedForeignKeyProperty].IsTouched) {
+						Properties[fixedForeignKeyProperty].IsTouched = true;
+						Properties[fixedForeignKeyProperty].IsModified = true;
+						fixedForeignKeyProperty.AsProperty().Setter.SetClrValue(Entity, principalForeignKeyProperty.AsProperty().Getter.GetClrValue(referencedEntityMutationInfo.Entity));
+					}
 				}
 				var inverseNavigation = referenceTuple.Navigation.FindInverse();
 				if (inverseNavigation != null) {
@@ -149,21 +183,25 @@ namespace Darkengines.Expressions.Mutation {
 					collectionTuple.Navigation.AsNavigation().CollectionAccessor.Add(Entity, targetEntityMutationInfo.Entity, false);
 				}
 			}
-
-			if (jObject.ContainsKey("$isCreation")) {
-				State = EntityState.Added;
-			} else if (isPrimaryKeySet) {
-				if (jObject.ContainsKey("$isDeletion")) {
-					State = EntityState.Deleted;
-				} else if (jObject.ContainsKey("$isEdition") || nonGeneratedPropertyTuples.Any()) {
-					State = EntityState.Modified;
-				} else {
-					State = EntityState.Unchanged;
+		}
+		public void FillPrimaryKeys(ISet<EntityMutationInfo> cache = null) {
+			if (cache == null) cache = new HashSet<EntityMutationInfo>();
+			if (!cache.Contains(this)) {
+				cache.Add(this);
+				JObject["$type"] = EntityType.ClrType.FullName;
+				foreach (var primaryKeyProperty in PrimaryKey.Properties) {
+					var value = primaryKeyProperty.GetGetter().GetClrValue(Entity);
+					JObject[primaryKeyProperty.Name.ToCamelCase()] = JToken.FromObject(value);
 				}
-			} else if (PrimaryKey.Properties[0].ValueGenerated == ValueGenerated.OnAdd) {
-				State = EntityState.Added;
-			} else {
-				State = EntityState.Unchanged;
+
+				foreach (var reference in References) {
+					reference.Value.TargetEntityMutationInfo?.FillPrimaryKeys(cache);
+				}
+				foreach (var collection in Collections) {
+					foreach (var item in collection.Value.TargetEntityMutationInfos) {
+						item.FillPrimaryKeys(cache);
+					}
+				}
 			}
 		}
 		public Expression BuildPermissionEntityExpression(object context, ISet<EntityMutationInfo> cache, Expression memberExpression = null) {
@@ -223,7 +261,7 @@ namespace Darkengines.Expressions.Mutation {
 		protected Expression BuildFindEntityQuery() {
 			var query = MutationContext.QueryProviderProvider.GetQuery(EntityType.ClrType);
 			var keyPredicateLambdaExpression = GetKeyFilterExpression();
-			var whereCallExpression = Expression.Call(null, WhereMethodInfo.MakeGenericMethod(EntityType.ClrType), Expression.Constant(query), keyPredicateLambdaExpression);
+			var whereCallExpression = Expression.Call(null, WhereMethodInfo.MakeGenericMethod(EntityType.ClrType), Root ? Expression.Constant(query) : query.Expression, keyPredicateLambdaExpression);
 			return whereCallExpression;
 		}
 
@@ -301,14 +339,16 @@ namespace Darkengines.Expressions.Mutation {
 		public async Task PrepareEntry(EntityEntry entry, ISet<EntityMutationInfo> cache) {
 			if (!(IsReference || cache.Contains(this))) {
 				cache.Add(this);
-				entry.State = State;
 				var isGeneratedPrimaryKey = PrimaryKey.Properties[0].ValueGenerated.HasFlag(ValueGenerated.OnAdd);
 				var unwantedProperties = Properties.Values.Where(property => {
 					return (property.Property.ValueGenerated.HasFlag(ValueGenerated.OnAdd) && property.Property.IsPrimaryKey())
 					|| (State != EntityState.Added && property.Property.IsPrimaryKey());
 				}).ToArray();
-				var touchedProperties = Properties.Values.Where(p => !unwantedProperties.Any(up => up == p)).ToArray();
-				foreach (var property in touchedProperties) {
+				var touchedProperties = Properties.Values.Where(p => !unwantedProperties.Any(up => up == p) && p.IsTouched).ToArray();
+				if (State == EntityState.Deleted || State == EntityState.Added) {
+					entry.State = State;
+				}
+				foreach (var property in touchedProperties.Where(p => !p.Property.IsPrimaryKey())) {
 					entry.Property(property.Property.Name).IsModified = property.IsModified;
 				}
 				foreach (var referenceMutationInfo in References.Values.Where(r => r.IsModified)) {
@@ -361,7 +401,7 @@ namespace Darkengines.Expressions.Mutation {
 				cache.Add(this);
 				if (RuleMap != null) {
 					switch (State) {
-						case (EntityState.Added): { await RuleMap.OnAfterCreation(MutationContext.SecurityContext, Entity, entry); break; }
+						case (EntityState.Added): { await RuleMap.OnAfterCreation(MutationContext.SecurityContext, Entity, entry, this); break; }
 						case (EntityState.Modified): { await RuleMap.OnAfterEdition(MutationContext.SecurityContext, Entity, entry); break; }
 						case (EntityState.Deleted): { await RuleMap.OnAfterDeletion(MutationContext.SecurityContext, Entity, entry); break; }
 					}

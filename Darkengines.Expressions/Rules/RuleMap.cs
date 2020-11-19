@@ -1,4 +1,5 @@
-﻿using Darkengines.Expressions.Security;
+﻿using Darkengines.Expressions.Mutation;
+using Darkengines.Expressions.Security;
 using DarkEngines.Expressions;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -12,8 +13,11 @@ using System.Threading.Tasks;
 
 namespace Darkengines.Expressions.Rules {
 	public class RuleMap<TContext, T> : IRuleMap where T : class {
+		protected AnonymousTypeBuilder AnonymousTypeBuilder { get; }
+		protected IModel Model { get; }
 		public bool ShouldApplyPermission { get; } = true;
-		public RuleMap() {
+		public Permission PropertiesDefaultPermission { get; set; } = Permission.Read;
+		public RuleMap(AnonymousTypeBuilder anonymousTypeBuilder, IModel model) {
 			PropertyOptions = new Dictionary<PropertyInfo, PropertyOptions<TContext, T>>(new PropertyInfoHandleComparer());
 			TypePermissionResolvers = new Collection<Func<TContext, Permission>>();
 			TypeCustomResolvers = new Dictionary<object, ICollection<Func<TContext, object>>>();
@@ -24,14 +28,18 @@ namespace Darkengines.Expressions.Rules {
 			InstanceCustomResolvers = new Dictionary<object, ICollection<Func<TContext, T, object>>>();
 			InstanceCustomResolverReducers = new Dictionary<object, Func<object, object, object>>();
 			MethodPermissionResolvers = new ParameterizedGenericMethodInfoRuleRegistry();
+			AnonymousTypeBuilder = anonymousTypeBuilder;
 			PreCreationActions = new Collection<Func<TContext, T, EntityEntry, ActionResult, Task<ActionResult>>>();
-			PostCreationActions = new Collection<Func<TContext, T, EntityEntry, Task>>();
+			PostCreationActions = new Collection<Func<TContext, T, EntityEntry, EntityMutationInfo, Task>>();
 			PreEditionActions = new Collection<Func<TContext, T, EntityEntry, ActionResult, Task<ActionResult>>>();
 			PostEditionActions = new Collection<Func<TContext, T, EntityEntry, Task>>();
 			PreDeletionActions = new Collection<Func<TContext, T, EntityEntry, ActionResult, Task<ActionResult>>>();
 			PostDeletionActions = new Collection<Func<TContext, T, EntityEntry, Task>>();
+			Model = model;
+			InstanceOptions = new InstanceOptions<TContext, T>();
 		}
-		public IDictionary<PropertyInfo, PropertyOptions<TContext, T>>  PropertyOptions {get;}
+		public IDictionary<PropertyInfo, PropertyOptions<TContext, T>> PropertyOptions { get; }
+		public InstanceOptions<TContext, T> InstanceOptions { get; set; }
 		public virtual bool RequireProjection { get; } = true;
 		public virtual bool CanHandle(Type type, TContext context) => typeof(T).IsAssignableFrom(type);
 		bool IRuleMap.CanHandle(Type type, object context) => CanHandle(type, (TContext)context);
@@ -44,6 +52,47 @@ namespace Darkengines.Expressions.Rules {
 
 		public virtual bool HasAnyInstancePropertyPermissionResolverExpression(PropertyInfo propertyInfo, object key) {
 			return PropertyOptions.ContainsKey(propertyInfo) && PropertyOptions[propertyInfo].InstancePropertyCustomResolverExpressions.ContainsKey(key);
+		}
+
+		protected MemberInitExpression DefaultProjectionExpression { get; set; }
+		public RuleMap<TContext, T> HasDefaultProjectionExpression(Expression<Func<T, object>> projectionExpression) {
+			DefaultProjectionExpression = ((MemberInitExpression)projectionExpression.Body);
+			return this;
+		}
+		public virtual Expression GetDefaultProjectionExpression(TContext context, Expression argumentExpression, IEnumerable<IRuleMap> ruleMaps) {
+			if (DefaultProjectionExpression != null) return DefaultProjectionExpression;
+			var entityType = Model.FindEntityType(typeof(T).FullName);
+			IEnumerable<PropertyInfo> propertyInfos;
+			if (entityType != null) {
+				var entityProperties = entityType.GetProperties();
+				propertyInfos = entityProperties.Where(entityProperty => {
+					ICollection<Func<TContext, object>> resolvers;
+					PropertyOptions<TContext, T> options;
+					return !PropertyOptions.TryGetValue(entityProperty.PropertyInfo, out options)
+					|| options.InstancePropertyCustomResolverExpressions.ContainsKey(Permission.Read)
+					|| !options.PropertyCustomResolvers.TryGetValue(Permission.Read, out resolvers)
+					|| resolvers.Any(resolver => (bool)resolver(context));
+				}).Select(entityProperty => entityProperty.PropertyInfo);
+			} else {
+				propertyInfos = typeof(T).GetProperties().Where(property => property.PropertyType.IsValueType || property.PropertyType.IsPrimitive);
+			}
+			var anonymousType = AnonymousTypeBuilder.BuildAnonymousType(propertyInfos.Select(propertyInfo => (propertyInfo.PropertyType, propertyInfo.Name).ToTuple()).ToHashSet(), $"{entityType?.Name ?? typeof(T).Name}Projection{Guid.NewGuid()}");
+			var newExpression = Expression.New(anonymousType.GetConstructor(new Type[0]));
+			argumentExpression = Expression.MemberInit(newExpression, propertyInfos.Join(anonymousType.GetProperties(), propertyInfo => propertyInfo.Name, pi => pi.Name, (propertyInfo, pi) => {
+				var propertyRuleMap = ruleMaps.Where(p => p.CanHandle(propertyInfo.PropertyType, context)).BuildRuleMap();
+				var predicateExpression = ResolveInstancePropertyCustomResolverExpression(propertyInfo, Permission.Read, context, argumentExpression);
+				if (predicateExpression != null && predicateExpression.Type != typeof(bool)) predicateExpression = Expression.Convert(predicateExpression, typeof(bool));
+				var rightHandExpression = (Expression)Expression.MakeMemberAccess(argumentExpression, propertyInfo);
+				if (predicateExpression != null) rightHandExpression = Expression.Condition(predicateExpression, rightHandExpression, Expression.Convert(Expression.Constant(propertyInfo.PropertyType.IsValueType ? Activator.CreateInstance(propertyInfo.PropertyType) : null), rightHandExpression.Type));
+				if (propertyRuleMap != null && propertyRuleMap.RequireProjection) {
+					rightHandExpression = propertyRuleMap.GetDefaultProjectionExpression(context, rightHandExpression, ruleMaps);
+				}
+				return Expression.Bind(pi, rightHandExpression);
+			}));
+			return argumentExpression;
+		}
+		Expression IRuleMap.GetDefaultProjectionExpression(object context, Expression argumentExpression, IEnumerable<IRuleMap> ruleMaps) {
+			return GetDefaultProjectionExpression((TContext)context, argumentExpression, ruleMaps);
 		}
 
 		protected IDictionary<object, Func<Expression, Expression, Expression>> InstanceCustomResolverExpressionReducers { get; }
@@ -112,7 +161,7 @@ namespace Darkengines.Expressions.Rules {
 		Expression IRuleMap.GetInstancePermissionResolverExpression(object context, Expression instanceExpression) {
 			return GetInstancePermissionResolverExpression((TContext)context, instanceExpression);
 		}
-				
+
 		public RuleMap<TContext, T> HasInstancePropertyCustomResolverExpression(object key, PropertyInfo propertyInfo, Expression<Func<TContext, T, object>> permissionResolver) {
 			PropertyOptions<TContext, T> options = null;
 			if (!PropertyOptions.TryGetValue(propertyInfo, out options)) {
@@ -227,8 +276,7 @@ namespace Darkengines.Expressions.Rules {
 			options.ShouldProject = false;
 			return this;
 		}
-		public RuleMap<TContext, T> DisableFilterForMethod<TInstance, TMethod>(Expression<Func<TInstance, TMethod>> methodAccessExpression, Type[] genericArguments)
-		{
+		public RuleMap<TContext, T> DisableFilterForMethod<TInstance, TMethod>(Expression<Func<TInstance, TMethod>> methodAccessExpression, Type[] genericArguments) {
 			var methodInfo = ExpressionHelper.ExtractMethodInfo(methodAccessExpression);
 			if (methodInfo.IsGenericMethod) methodInfo = methodInfo.GetGenericMethodDefinition();
 			return DisableFilterForMethod(methodInfo, genericArguments);
@@ -281,8 +329,7 @@ namespace Darkengines.Expressions.Rules {
 			if (methodInfo.IsGenericMethod) methodInfo = methodInfo.GetGenericMethodDefinition();
 			return HasMethodPermissionResolver(methodInfo, resolver, genericArguments);
 		}
-		public RuleMap<TContext, T> HasMethodPermissionResolver<TInstance, TMethod>(Expression<Func<TInstance, TMethod>> methodAccessExpression, Func<TContext, Permission> resolver, params Type[] genericArguments) where TInstance: class
-		{
+		public RuleMap<TContext, T> HasMethodPermissionResolver<TInstance, TMethod>(Expression<Func<TInstance, TMethod>> methodAccessExpression, Func<TContext, Permission> resolver, params Type[] genericArguments) where TInstance : class {
 			var methodInfo = ExpressionHelper.ExtractMethodInfo(methodAccessExpression);
 			if (methodInfo.IsGenericMethod) methodInfo = methodInfo.GetGenericMethodDefinition();
 			return HasMethodPermissionResolver(methodInfo, resolver, genericArguments);
@@ -375,13 +422,13 @@ namespace Darkengines.Expressions.Rules {
 			foreach (var action in PreCreationActions) actionResult = await action((TContext)context, (T)instance, entry, actionResult);
 			return actionResult;
 		}
-		protected ICollection<Func<TContext, T, EntityEntry, Task>> PostCreationActions;
-		public RuleMap<TContext, T> HasPostCreationAction(Func<TContext, T, EntityEntry, Task> action) {
+		protected ICollection<Func<TContext, T, EntityEntry, EntityMutationInfo, Task>> PostCreationActions;
+		public RuleMap<TContext, T> HasPostCreationAction(Func<TContext, T, EntityEntry, EntityMutationInfo, Task> action) {
 			PostCreationActions.Add(action);
 			return this;
 		}
-		public async Task OnAfterCreation(object context, object instance, EntityEntry entry) {
-			foreach (var action in PostCreationActions) await action((TContext)context, (T)instance, entry.Context.Entry((T)instance));
+		public async Task OnAfterCreation(object context, object instance, EntityEntry entry, EntityMutationInfo entityMutationInfo) {
+			foreach (var action in PostCreationActions) await action((TContext)context, (T)instance, entry.Context.Entry((T)instance), entityMutationInfo);
 		}
 		protected ICollection<Func<TContext, T, EntityEntry, ActionResult, Task<ActionResult>>> PreDeletionActions;
 		public RuleMap<TContext, T> HasPreDeletionAction(Func<TContext, T, EntityEntry, ActionResult, Task<ActionResult>> action) {
@@ -450,6 +497,33 @@ namespace Darkengines.Expressions.Rules {
 				Expression.Lambda<Func<TContext, T, object>>(Expression.Convert(resolver.Body, typeof(object)), resolver.Parameters)
 			);
 			return this;
+		}
+		public Expression<Func<TRelated, bool>> GetRelationMapPredicateExpression<TRelated>(object key, ParameterExpression relatedParameterExpression, T entity) {
+			IDictionary<object, ICollection<Expression>> expressionsMap = null;
+			if (!InstanceOptions.RelationMapExpressions.TryGetValue(typeof(TRelated), out expressionsMap)) {
+				return null;
+			}
+			ICollection<Expression> expressions = null;
+			if (!expressionsMap.TryGetValue(key, out expressions)) {
+				return null;
+			}
+			var replacementDictionary = new Dictionary<Expression, Expression>();
+			var entityExpression = Expression.Constant(entity);
+			var replacer = new ReplacementExpressionVisitor(replacementDictionary);
+			var predicateExpressions = expressions.Cast<Expression<Func<TRelated, T, bool>>>().Select(predicate => {
+				replacementDictionary[predicate.Parameters[0]] = relatedParameterExpression;
+				replacementDictionary[predicate.Parameters[1]] = entityExpression;
+				return replacer.Visit(predicate.Body);
+			}).ToArray();
+			var firstPredicate = predicateExpressions.First();
+			var tail = predicateExpressions.Skip(1);
+
+			var predicateBody = predicateExpressions.Aggregate(firstPredicate, (predicate, finalPredicate) => {
+				return Expression.OrElse(predicate, finalPredicate);
+			});
+
+			var lambda = Expression.Lambda<Func<TRelated, bool>>(predicateBody, relatedParameterExpression);
+			return lambda;
 		}
 	}
 }

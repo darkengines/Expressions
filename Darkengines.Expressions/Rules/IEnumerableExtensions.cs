@@ -1,4 +1,5 @@
-﻿using Darkengines.Expressions.Security;
+﻿using Darkengines.Expressions.Mutation;
+using Darkengines.Expressions.Security;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using System;
 using System.Collections.Generic;
@@ -22,6 +23,13 @@ namespace Darkengines.Expressions.Rules {
 		public AggregatedRuleMap(IEnumerable<IRuleMap> ruleMaps) {
 			RuleMaps = ruleMaps;
 		}
+		public Permission PropertiesDefaultPermission {
+			get {
+				return RuleMaps.Aggregate(Permission.Read, (result, ruleMap) => {
+					return result & ruleMap.PropertiesDefaultPermission;
+				});
+			}
+		}
 		public bool RequireProjection {
 			get {
 				var result = RuleMaps.Aggregate(false, (requiresProjection, ruleMap) => requiresProjection || ruleMap.RequireProjection);
@@ -35,6 +43,11 @@ namespace Darkengines.Expressions.Rules {
 
 		public bool CanHandle(Type type, object context) {
 			return false;
+		}
+
+		public Expression GetDefaultProjectionExpression(object context, Expression argumentExpression, IEnumerable<IRuleMap> ruleMaps) {
+			var result = RuleMaps.First().GetDefaultProjectionExpression(context, argumentExpression, ruleMaps);
+			return result;
 		}
 
 		public Expression GetInstancePermissionResolverExpression(object context, Expression instanceExpression) {
@@ -65,9 +78,9 @@ namespace Darkengines.Expressions.Rules {
 			return RuleMaps.Aggregate(false, (result, ruleMap) => result || ruleMap.HasAnyInstancePropertyPermissionResolverExpression(propertyInfo, key));
 		}
 
-		public async Task OnAfterCreation(object context, object instance, EntityEntry entry) {
+		public async Task OnAfterCreation(object context, object instance, EntityEntry entry, EntityMutationInfo entityMutationInfo) {
 			foreach (var ruleMap in RuleMaps) {
-				await ruleMap.OnAfterCreation(context, instance, entry);
+				await ruleMap.OnAfterCreation(context, instance, entry, entityMutationInfo);
 			}
 		}
 

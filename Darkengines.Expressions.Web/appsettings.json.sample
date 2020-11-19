@@ -1,0 +1,5 @@
+﻿{
+	"ConnectionStrings": {
+		"default": "Server=localhost;Database=expressions;User ID=[user];Password=[password];Trusted_Connection=False;"
+	}
+}

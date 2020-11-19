@@ -72,9 +72,8 @@ namespace Darkengines.Expressions.Web {
 				});
 				jsExpression = parser.ParseExpression();
 			}
-			// Converting parsed Ecmascript expression to expression model
 
-			// The context olds the converters
+			// The context holds the converters
 			// Building the expression
 
 			var currentUser = identityProvider.GetIdentity().User;
@@ -91,8 +90,7 @@ namespace Darkengines.Expressions.Web {
 				securityContext = new Context() { User = currentUser },
 				Source = payload
 			};
-			//var identifiers = queryProviderProvider.Context.ToDictionary(kp => kp.Key, kp => (Expression)Expression.Constant(kp.Value));
-			//foreach (var identifier in Identifiers) identifiers[identifier.Name] = identifier.Expression;
+
 			var identifiers = new Dictionary<string, System.Linq.Expressions.Expression>();
 			foreach (var identifierProvider in identifierProviders) {
 				foreach (var identifier in identifierProvider.Identifiers) identifiers[identifier.Key] = identifier.Value;

@@ -55,6 +55,10 @@ namespace Darkengines.Expressions.Converters {
 					}
 				}
 			}
+			var ruleMap = expressionConverterContext.RuleMapRegistry.GetRuleMap(resultExpression.Type, expressionConverterContext.securityContext);
+			if (false && !expressionConverterContext.IsAdmin && ruleMap != null && !allowTerminal && ruleMap.RequireProjection && result.ShouldApplyProjection) {
+				resultExpression = ruleMap.GetDefaultProjectionExpression(expressionConverterContext.securityContext, resultExpression, expressionConverterContext.RuleMaps);
+			}
 			return resultExpression;
 		}
 		public virtual bool CanHandle(T expression) { return expression is T; }
